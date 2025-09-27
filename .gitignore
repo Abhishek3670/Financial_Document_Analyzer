@@ -44,3 +44,15 @@ main.py.before_*
 analysis_result.json
 analysis_from_db.json
 Documents
+
+AUTHENTICATION_GUIDE.md
+AUTHENTICATION_PHASE2_GUIDE.md
+AUTHENTICATION_PHASE3_GUIDE.md
+DEMO_ACCESS_GUIDE.md
+frontend/src/INTEGRATED_APP_GUIDE.md
+frontend/src/components/AuthPhase2Demo.tsx
+frontend/src/components/AuthPhase3Demo.tsx
+frontend/src/components/AuthSystemDemo.tsx
+frontend/src/components/DemoTestInstructions.tsx
+frontend/src/App.tsx.current-20250927-155650
+financial_document_analyzer_demo.ipynb

@@ -6,6 +6,8 @@ import Header from './components/Header';
 import Navigation, { NavigationTab } from './components/Navigation';
 import { AnalysisResponse, AnalysisHistoryItem } from './types';
 import { healthCheck } from './api';
+import { ToastProvider } from './components/Toast';
+import { AuthProvider } from './components/Auth';
 import './App.css';
 
 function App() {
@@ -40,22 +42,23 @@ function App() {
     // Convert to AnalysisResponse format for display
     if (analysis.status === 'completed') {
       const analysisResponse: AnalysisResponse = {
+        id: analysis.id,
         status: 'success',
+        result: analysis.query, // Use query as fallback for result
         analysis_id: analysis.id,
-        document_id: analysis.document_id,
-        user_id: analysis.user_id,
+        query: analysis.query,
+        created_at: analysis.created_at,
+        completed_at: analysis.completed_at,
         file_info: {
           filename: analysis.document?.original_filename || 'Unknown',
           size_mb: analysis.document ? Math.round((analysis.document.file_size / 1024 / 1024) * 100) / 100 : 0,
-          processed_at: analysis.completed_at || analysis.started_at
+          processed_at: analysis.completed_at || analysis.created_at
         },
-        query: analysis.query,
-        analysis: analysis.result, // This is the key fix - use result field from database
         metadata: {
           processing_id: analysis.id,
-          file_type: analysis.document?.file_type || 'PDF',
-          analysis_timestamp: analysis.completed_at || analysis.started_at,
-          kept_file: analysis.document?.is_stored_permanently || false
+          file_type: 'PDF',
+          analysis_timestamp: analysis.completed_at || analysis.created_at,
+          kept_file: false
         }
       };
       setAnalysisResult(analysisResponse);
@@ -118,13 +121,26 @@ function App() {
 
   // Render main content based on active tab and state
   const renderMainContent = () => {
-    // If viewing analysis results, show them regardless of active tab
+    // If we have an analysis result (from upload or history), show it
     if (analysisResult) {
       return (
-        <AnalysisResults 
-          result={analysisResult}
-          onNewAnalysis={handleNewAnalysis}
-        />
+        <div className="space-y-6">
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Analysis Results</h2>
+              <button
+                onClick={handleNewAnalysis}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                New Analysis
+              </button>
+            </div>
+            <AnalysisResults 
+              result={analysisResult}
+              onNewAnalysis={handleNewAnalysis}
+            />
+          </div>
+        </div>
       );
     }
 
@@ -132,63 +148,34 @@ function App() {
     switch (activeTab) {
       case 'upload':
         return (
-          <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-8">
-              <h1 className="text-4xl font-bold text-gray-900 mb-4">
-                Financial Document Analyzer
-              </h1>
-              <p className="text-xl text-gray-600">
-                Upload your financial documents and get AI-powered insights
-              </p>
-            </div>
-            
+          <div className="space-y-6">
             <FileUpload 
               onAnalysisComplete={handleAnalysisComplete}
-              isLoading={isLoading}
-              setIsLoading={setIsLoading}
             />
           </div>
         );
-
+      
       case 'history':
         return (
-          <div className="max-w-6xl mx-auto">
+          <div className="space-y-6">
             <AnalysisHistory 
               onViewAnalysis={handleViewAnalysis}
             />
           </div>
         );
-
-      case 'documents':
-        return (
-          <div className="max-w-6xl mx-auto">
-            <div className="text-center py-12">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Document Management</h2>
-              <p className="text-gray-600">
-                Document management interface coming soon...
-              </p>
-            </div>
-          </div>
-        );
-
-      case 'analytics':
-        return (
-          <div className="max-w-6xl mx-auto">
-            <div className="text-center py-12">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Analytics Dashboard</h2>
-              <p className="text-gray-600">
-                Analytics and statistics dashboard coming soon...
-              </p>
-            </div>
-          </div>
-        );
-
+      
       default:
-        return null;
+        return (
+          <div className="text-center py-12">
+            <p className="text-gray-500">Select a tab to continue</p>
+          </div>
+        );
     }
   };
 
   return (
+    <ToastProvider>
+    <AuthProvider>
     <div className="min-h-screen bg-gray-50">
       <Header />
       
@@ -218,6 +205,8 @@ function App() {
         </div>
       </footer>
     </div>
+    </AuthProvider>
+    </ToastProvider>
   );
 }
 

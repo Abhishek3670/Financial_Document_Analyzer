@@ -1,6 +1,6 @@
 import React from 'react';
 import { FileText, Download, ArrowLeft, Clock, Database, AlertCircle } from 'lucide-react';
-import { AnalysisResponse } from '../types';
+import type { AnalysisResponse } from '../types';
 
 interface AnalysisResultsProps {
   result: AnalysisResponse;

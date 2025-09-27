@@ -1,249 +1,222 @@
-import React, { useCallback, useState } from 'react';
-import { useDropzone } from 'react-dropzone';
+import React, { useState, useRef } from 'react';
 import { Upload, FileText, X, Loader2, AlertCircle, Save } from 'lucide-react';
-import { AnalysisResponse } from '../types';
-import { analyzeDocument } from '../api';
+import type { AnalysisResponse } from '../types';
+import { documentAPI } from '../api';
 
 interface FileUploadProps {
   onAnalysisComplete: (result: AnalysisResponse) => void;
-  isLoading: boolean;
-  setIsLoading: (loading: boolean) => void;
+  className?: string;
 }
 
-const FileUpload: React.FC<FileUploadProps> = ({ 
-  onAnalysisComplete, 
-  isLoading, 
-  setIsLoading 
-}) => {
+const FileUpload: React.FC<FileUploadProps> = ({ onAnalysisComplete, className = '' }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('Provide a comprehensive financial analysis of this document');
   const [keepFile, setKeepFile] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file) {
-      if (file.type !== 'application/pdf') {
-        setError('Please upload a PDF file only');
-        return;
-      }
-      if (file.size > 50 * 1024 * 1024) {
-        setError('File size must be less than 50MB');
-        return;
-      }
       setSelectedFile(file);
       setError(null);
     }
-  }, []);
+  };
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'application/pdf': ['.pdf']
-    },
-    maxFiles: 1,
-    disabled: isLoading
-  });
+  const handleDragOver = (event: React.DragEvent) => {
+    event.preventDefault();
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!selectedFile) {
-      setError('Please select a PDF file');
-      return;
+  const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files[0];
+    if (file) {
+      setSelectedFile(file);
+      setError(null);
     }
+  };
+
+  const handleAnalyze = async () => {
+    if (!selectedFile) return;
 
     setIsLoading(true);
     setError(null);
     setProgress(0);
 
     try {
-      const result = await analyzeDocument(
-        {
-          file: selectedFile,
-          query,
-          keep_file: keepFile
-        },
-        (progress) => {
-          setProgress(progress);
-        }
+      const result = await documentAPI.uploadAndAnalyze(
+        selectedFile,
+        query,
+        keepFile
       );
 
-      onAnalysisComplete(result);
+      // Convert the upload response to the expected AnalysisResponse format
+      const analysisResponse: AnalysisResponse = {
+        id: result.analysis_id,
+        status: result.status,
+        result: result.analysis,
+        analysis: result.analysis,
+        query: result.query,
+        created_at: result.metadata.analysis_timestamp,
+        file_info: result.file_info,
+        metadata: result.metadata
+      };
+
+      onAnalysisComplete(analysisResponse);
       
-      // Reset form on success
+      // Reset form
       setSelectedFile(null);
-      setQuery('Provide a comprehensive financial analysis of this document');
-      setKeepFile(false);
-      
-    } catch (err: any) {
-      console.error('Analysis error:', err);
-      if (err.response?.data?.detail) {
-        if (typeof err.response.data.detail === 'string') {
-          setError(err.response.data.detail);
-        } else {
-          setError(err.response.data.detail.error || 'Analysis failed');
-        }
-      } else if (err.message) {
-        setError(err.message);
-      } else {
-        setError('Failed to analyze document. Please try again.');
+      setProgress(0);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
       }
+    } catch (err: any) {
+      setError(err.message || 'Analysis failed');
     } finally {
       setIsLoading(false);
-      setProgress(0);
     }
   };
 
-  const removeFile = () => {
-    setSelectedFile(null);
-    setError(null);
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border p-6 max-w-2xl mx-auto">
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* File Upload Area */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Upload Financial Document
-          </label>
+    <div className={`space-y-6 ${className}`}>
+      {/* File Upload Area */}
+      <div 
+        className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors"
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        <div className="space-y-4">
+          <div className="mx-auto w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
+            <Upload className="w-6 h-6 text-blue-600" />
+          </div>
           
-          {!selectedFile ? (
-            <div
-              {...getRootProps()}
-              className={`
-                border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-                ${isDragActive 
-                  ? 'border-blue-500 bg-blue-50' 
-                  : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
-                }
-                ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}
-              `}
-            >
-              <input {...getInputProps()} />
-              <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-lg font-medium text-gray-700 mb-2">
-                {isDragActive ? 'Drop your PDF here' : 'Drag & drop your PDF here'}
-              </p>
-              <p className="text-sm text-gray-500">
-                or click to browse (max 50MB)
-              </p>
-            </div>
-          ) : (
-            <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <FileText className="w-8 h-8 text-blue-600" />
-                  <div>
-                    <p className="font-medium text-gray-900">{selectedFile.name}</p>
-                    <p className="text-sm text-gray-500">
-                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                  </div>
-                </div>
-                {!isLoading && (
-                  <button
-                    type="button"
-                    onClick={removeFile}
-                    className="text-gray-400 hover:text-red-500 transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                )}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900">Upload Document</h3>
+            <p className="text-gray-500">Drag and drop or click to select a PDF file</p>
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf"
+            onChange={handleFileSelect}
+            className="hidden"
+            id="file-input"
+          />
+          <label
+            htmlFor="file-input"
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 cursor-pointer"
+          >
+            Choose File
+          </label>
+        </div>
+      </div>
+
+      {/* Selected File Display */}
+      {selectedFile && (
+        <div className="bg-gray-50 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <FileText className="w-8 h-8 text-blue-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
+                <p className="text-xs text-gray-500">{formatFileSize(selectedFile.size)}</p>
               </div>
             </div>
-          )}
+            <button
+              onClick={() => setSelectedFile(null)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
+      )}
 
-        {/* Query Input */}
-        <div>
-          <label htmlFor="query" className="block text-sm font-medium text-gray-700 mb-2">
-            Analysis Query
-          </label>
-          <textarea
-            id="query"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            disabled={isLoading}
-            rows={3}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            placeholder="What would you like to know about this financial document?"
-          />
-        </div>
+      {/* Analysis Query */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Analysis Query (Optional)
+        </label>
+        <textarea
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          rows={3}
+          placeholder="Describe what specific analysis you'd like..."
+        />
+      </div>
 
-        {/* Keep File Option */}
-        <div className="flex items-center space-x-2">
+      {/* Options */}
+      <div>
+        <label className="flex items-center">
           <input
-            id="keepFile"
             type="checkbox"
             checked={keepFile}
             onChange={(e) => setKeepFile(e.target.checked)}
-            disabled={isLoading}
-            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
           />
-          <label htmlFor="keepFile" className="flex items-center text-sm font-medium text-gray-700 cursor-pointer">
-            <Save className="w-4 h-4 mr-1" />
-            Keep file after analysis (for future reference)
-          </label>
-        </div>
+          <span className="ml-2 text-sm text-gray-700">Keep file for future reference</span>
+        </label>
+      </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-lg">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <p className="text-sm">{error}</p>
-          </div>
-        )}
-
-        {/* Progress Bar */}
-        {isLoading && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-600">Processing...</span>
-              <span className="text-gray-600">{progress}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              />
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">Analysis Error</h3>
+              <p className="text-sm text-red-700 mt-1">{error}</p>
             </div>
           </div>
-        )}
-
-        {/* Submit Button */}
-        <button
-          type="submit"
-          disabled={!selectedFile || isLoading}
-          className={`
-            w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed
-            text-white font-medium py-3 px-4 rounded-lg transition-colors
-            flex items-center justify-center space-x-2
-          `}
-        >
-          {isLoading ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Analyzing Document...</span>
-            </>
-          ) : (
-            <>
-              <Upload className="w-5 h-5" />
-              <span>Analyze Document</span>
-            </>
-          )}
-        </button>
-
-        {/* Help Text */}
-        <div className="text-xs text-gray-500 text-center">
-          <p>
-            Your document will be analyzed using AI-powered financial analysis agents.
-            {keepFile && " The file will be stored for future reference."}
-          </p>
         </div>
-      </form>
+      )}
+
+      {/* Progress Bar */}
+      {isLoading && (
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm text-gray-600">
+            <span>Processing document...</span>
+            <span>{progress}%</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Analyze Button */}
+      <button
+        onClick={handleAnalyze}
+        disabled={!selectedFile || isLoading}
+        className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+      >
+        {isLoading ? (
+          <>
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            Analyzing...
+          </>
+        ) : (
+          <>
+            <Save className="w-4 h-4 mr-2" />
+            Analyze Document
+          </>
+        )}
+      </button>
     </div>
   );
 };

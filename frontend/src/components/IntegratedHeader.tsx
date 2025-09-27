@@ -6,7 +6,7 @@ import { ProfileManagementDashboard } from './AuthProfileManagement';
 import { EmailVerificationBanner } from './AuthEmailVerification';
 import { useToast } from './Toast';
 
-const Header: React.FC = () => {
+const IntegratedHeader: React.FC = () => {
   const { user, logout, refreshUser } = useAuth();
   const { showToast } = useToast();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -27,13 +27,8 @@ const Header: React.FC = () => {
     setPreviousUser(user);
   }, [user, previousUser, showToast, refreshUser]);
 
-  const handleAuthSuccess = async () => {
-    // Refresh user immediately so UI updates without manual reload
-    try {
-      await refreshUser();
-    } finally {
-      setShowAuthModal(false);
-    }
+  const handleAuthSuccess = () => {
+    setShowAuthModal(false);
     // Toast will be shown by the useEffect when user state changes
   };
 
@@ -153,8 +148,7 @@ const Header: React.FC = () => {
       {/* Authentication Modal */}
       <EnhancedAuthModalWithReset
         isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        onSuccess={handleAuthSuccess}
+        onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess}
         defaultMode="login"
       />
 
@@ -198,4 +192,4 @@ const Header: React.FC = () => {
   );
 };
 
-export default Header;
+export default IntegratedHeader;

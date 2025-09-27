@@ -1,446 +1,465 @@
 import axios, { AxiosResponse } from 'axios';
-import {
-  AnalysisResponse,
-  AnalysisHistoryResponse,
-  DocumentListResponse,
-  StatisticsResponse,
-  AnalysisStatusResponse,
-  StorageStatistics,
-  AnalyzeRequest,
-  AnalysisHistoryItem
-} from './types';
 
-// Base configuration
+// API Configuration
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 300000, // 5 minutes
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
-// Request interceptor for debugging
-api.interceptors.request.use(
-  (config) => {
-    console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
-    return config;
-  },
-  (error) => {
-    console.error('API Request Error:', error);
-    return Promise.reject(error);
+// Add auth token to requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+  return config;
+});
 
-// Response interceptor for error handling
+// Handle token expiration
 api.interceptors.response.use(
-  (response) => {
-    console.log(`API Response: ${response.status} ${response.config.url}`);
-    return response;
-  },
+  (response) => response,
   (error) => {
-    console.error('API Response Error:', error.response?.data || error.message);
+    if (error.response?.status === 401) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user_data');
+      
+    }
     return Promise.reject(error);
   }
 );
 
-// API functions
+// Types
+export interface User {
+  id: string;
+  email: string;
+  username: string;
+  first_name?: string;
+  last_name?: string;
+  full_name: string;
+  is_active: boolean;
+  is_verified: boolean;
+  created_at: string;
+  last_activity?: string;
+  last_login?: string;
+}
 
-/**
- * Health check endpoint
- */
-export const healthCheck = async (): Promise<any> => {
-  const response = await api.get('/health');
-  return response.data;
-};
+export interface RegisterData {
+  email: string;
+  password: string;
+  confirm_password: string;
+  first_name: string;
+  last_name: string;
+}
 
-/**
- * Analyze a document
- */
-export const analyzeDocument = async (
-  request: AnalyzeRequest,
-  onProgress?: (progress: number) => void
-): Promise<AnalysisResponse> => {
-  const formData = new FormData();
-  formData.append('file', request.file);
-  formData.append('query', request.query);
-  if (request.keep_file !== undefined) {
-    formData.append('keep_file', request.keep_file.toString());
-  }
+export interface LoginData {
+  email: string;
+  password: string;
+}
 
-  const response = await api.post<AnalysisResponse>('/analyze', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-    onUploadProgress: (progressEvent) => {
-      if (progressEvent.total && onProgress) {
-        const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-        onProgress(progress);
-      }
-    },
-  });
+export interface ChangePasswordData {
+  current_password: string;
+  new_password: string;
+  confirm_new_password: string;
+}
 
-  return response.data;
-};
+export interface ProfileUpdateData {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+}
 
-/**
- * Get analysis history with pagination and filtering
- */
-export const getAnalysisHistory = async (
-  page: number = 1,
-  pageSize: number = 10,
-  status?: string
-): Promise<AnalysisHistoryResponse> => {
-  const params: any = {
-    page,
-    page_size: pageSize,
-  };
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  user: User;
+}
 
-  if (status) {
-    params.status = status;
-  }
+export interface AnalysisResult {
+  summary: string;
+  key_insights: string[];
+  recommendations: string[];
+  risk_assessment: string;
+  financial_metrics: Record<string, any>;
+}
 
-  const response = await api.get<AnalysisHistoryResponse>('/analysis/history', {
-    params,
-  });
+export interface Document {
+  id: string;
+  original_filename: string;
+  file_size: number;
+  file_type: string;
+  upload_date: string;
+  status: 'pending' | 'processing' | 'completed' | 'error';
+  is_processed: boolean;
+}
 
-  return response.data;
-};
+export interface Analysis {
+  id: string;
+  document_id: string;
+  query: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  result?: string;
+  created_at: string;
+  completed_at?: string;
+  document?: Document;
+}
 
-/**
- * Get a specific analysis by ID
- */
-export const getAnalysisById = async (analysisId: string): Promise<{
-  analysis: AnalysisHistoryItem;
-  document: any;
-}> => {
-  const response = await api.get(`/analysis/${analysisId}`);
-  return response.data;
-};
-
-/**
- * Delete an analysis
- */
-export const deleteAnalysis = async (analysisId: string): Promise<{
-  message: string;
-  analysis_id: string;
-}> => {
-  const response = await api.delete(`/analysis/${analysisId}`);
-  return response.data;
-};
-
-/**
- * Get user documents
- */
-export const getDocuments = async (
-  page: number = 1,
-  pageSize: number = 10
-): Promise<DocumentListResponse> => {
-  const response = await api.get<DocumentListResponse>('/documents', {
-    params: {
-      page,
-      page_size: pageSize,
-    },
-  });
-
-  return response.data;
-};
-
-/**
- * Get user and system statistics
- */
-export const getStatistics = async (): Promise<StatisticsResponse> => {
-  const response = await api.get<StatisticsResponse>('/statistics');
-  return response.data;
-};
-
-/**
- * Get analysis status (for polling)
- */
-export const getAnalysisStatus = async (analysisId: string): Promise<AnalysisStatusResponse> => {
-  const response = await api.post<AnalysisStatusResponse>(`/analysis/${analysisId}/status`);
-  return response.data;
-};
-
-/**
- * Admin: Get storage statistics
- */
-export const getStorageStatistics = async (): Promise<StorageStatistics> => {
-  const response = await api.get<StorageStatistics>('/admin/storage-stats');
-  return response.data;
-};
-
-/**
- * Admin: Run maintenance
- */
-export const runMaintenance = async (): Promise<{
+export interface UploadResponse {
   status: string;
-  maintenance_results: any;
-  timestamp: string;
-}> => {
-  const response = await api.post('/admin/maintenance');
-  return response.data;
+  analysis_id: string;
+  document_id: string;
+  user_id: string;
+  file_info: {
+    filename: string;
+    size_mb: number;
+    processed_at: string;
+  };
+  query: string;
+  analysis: string;
+  metadata: {
+    processing_id: string;
+    file_type: string;
+    analysis_timestamp: string;
+    kept_file: boolean;
+  };
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    page_size: number;
+    total_count: number;
+    has_more: boolean;
+    total_pages: number;
+  };
+}
+
+// Authentication API
+export const authAPI = {
+  register: async (data: RegisterData): Promise<TokenResponse> => {
+    try {
+      const response = await api.post<TokenResponse>('/auth/register', {
+        email: data.email,
+        password: data.password,
+        confirm_password: data.confirm_password,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        username: data.email, // Use email as username for now
+      });
+
+      // Store token and user data
+      const { access_token, user } = response.data;
+      localStorage.setItem('auth_token', access_token);
+      localStorage.setItem('user_data', JSON.stringify(user));
+
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Registration failed';
+      throw new Error(message);
+    }
+  },
+
+  login: async (data: LoginData): Promise<TokenResponse> => {
+    try {
+      const response = await api.post<TokenResponse>('/auth/login', data);
+
+      // Store token and user data
+      const { access_token, user } = response.data;
+      localStorage.setItem('auth_token', access_token);
+      localStorage.setItem('user_data', JSON.stringify(user));
+
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Login failed';
+      throw new Error(message);
+    }
+  },
+
+  logout: async (): Promise<void> => {
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      // Continue with logout even if API call fails
+      console.warn('Logout API call failed, continuing with local cleanup');
+    } finally {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user_data');
+    }
+  },
+
+  getCurrentUser: async (): Promise<User> => {
+    try {
+      const response = await api.get<User>('/auth/me');
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Failed to get user profile';
+      throw new Error(message);
+    }
+  },
+
+  updateProfile: async (data: ProfileUpdateData): Promise<User> => {
+    try {
+      const response = await api.put<User>('/auth/profile', data);
+      
+      // Update stored user data
+      localStorage.setItem('user_data', JSON.stringify(response.data));
+      
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Failed to update profile';
+      throw new Error(message);
+    }
+  },
+
+  changePassword: async (data: ChangePasswordData): Promise<{ message: string }> => {
+    try {
+      const response = await api.post('/auth/change-password', data);
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Failed to change password';
+      throw new Error(message);
+    }
+  },
+
+  requestPasswordReset: async (email: string): Promise<{ message: string; token?: string }> => {
+    try {
+      const response = await api.post('/auth/forgot-password', { email });
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Password reset request failed';
+      throw new Error(message);
+    }
+  },
+
+  resetPassword: async (token: string, newPassword: string): Promise<{ message: string }> => {
+    try {
+      const response = await api.post('/auth/reset-password', {
+        token,
+        new_password: newPassword,
+      });
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Password reset failed';
+      throw new Error(message);
+    }
+  },
+
+  // Email verification endpoints (to be implemented on backend)
+  requestEmailVerification: async (): Promise<{ message: string }> => {
+    try {
+      const response = await api.post('/auth/request-verification');
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Email verification request failed';
+      throw new Error(message);
+    }
+  },
+
+  verifyEmail: async (token: string): Promise<{ message: string }> => {
+    try {
+      const response = await api.post('/auth/verify-email', { token });
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Email verification failed';
+      throw new Error(message);
+    }
+  },
 };
 
-// Utility functions
+// Document Analysis API
+export const documentAPI = {
+  uploadAndAnalyze: async (
+    file: File,
+    query: string = 'Provide a comprehensive financial analysis of this document',
+    keepFile: boolean = false
+  ): Promise<UploadResponse> => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('query', query);
+      formData.append('keep_file', keepFile.toString());
 
-/**
- * Poll analysis status until completion
- */
-export const pollAnalysisStatus = async (
-  analysisId: string,
-  onStatusUpdate?: (status: AnalysisStatusResponse) => void,
-  maxAttempts: number = 60,
-  intervalMs: number = 2000
-): Promise<AnalysisStatusResponse> => {
-  return new Promise((resolve, reject) => {
-    let attempts = 0;
+      const response = await api.post<UploadResponse>('/analyze', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        // Add progress tracking if needed
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            console.log(`Upload Progress: ${percentCompleted}%`);
+          }
+        },
+      });
 
-    const poll = async () => {
-      try {
-        attempts++;
-        const status = await getAnalysisStatus(analysisId);
-        
-        if (onStatusUpdate) {
-          onStatusUpdate(status);
-        }
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Document upload and analysis failed';
+      throw new Error(message);
+    }
+  },
 
-        if (status.status === 'completed' || status.status === 'failed') {
-          resolve(status);
-          return;
-        }
-
-        if (attempts >= maxAttempts) {
-          reject(new Error('Polling timeout: Analysis took too long to complete'));
-          return;
-        }
-
-        setTimeout(poll, intervalMs);
-      } catch (error) {
-        reject(error);
-      }
+  getAnalysisHistory: async (
+    page: number = 1,
+    pageSize: number = 10,
+    status?: string
+  ): Promise<{
+    analyses: Analysis[];
+    pagination: {
+      page: number;
+      page_size: number;
+      total_count: number;
+      has_more: boolean;
+      total_pages: number;
     };
+  }> => {
+    try {
+      const params: any = { page, page_size: pageSize };
+      if (status) params.status = status;
 
-    poll();
-  });
+      const response = await api.get('/analysis/history', { params });
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Failed to get analysis history';
+      throw new Error(message);
+    }
+  },
+
+  getAnalysisById: async (analysisId: string): Promise<{ analysis: Analysis; document?: Document }> => {
+    try {
+      const response = await api.get(`/analysis/${analysisId}`);
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Failed to get analysis';
+      throw new Error(message);
+    }
+  },
+
+  getAnalysisStatus: async (analysisId: string): Promise<{
+    status: string;
+    message: string;
+    analysis_id: string;
+    progress_percentage: number;
+  }> => {
+    try {
+      const response = await api.post(`/analysis/${analysisId}/status`);
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Failed to get analysis status';
+      throw new Error(message);
+    }
+  },
+
+  deleteAnalysis: async (analysisId: string): Promise<{ message: string }> => {
+    try {
+      const response = await api.delete(`/analysis/${analysisId}`);
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Failed to delete analysis';
+      throw new Error(message);
+    }
+  },
+
+  getDocuments: async (
+    page: number = 1,
+    pageSize: number = 10
+  ): Promise<{
+    documents: Document[];
+    pagination: {
+      page: number;
+      page_size: number;
+      total_count: number;
+      has_more: boolean;
+      total_pages: number;
+    };
+  }> => {
+    try {
+      const response = await api.get('/documents', {
+        params: { page, page_size: pageSize },
+      });
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Failed to get documents';
+      throw new Error(message);
+    }
+  },
+
+  getStatistics: async (): Promise<{
+    user_statistics: any;
+    system_statistics: any;
+    database_info: any;
+  }> => {
+    try {
+      const response = await api.get('/statistics');
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Failed to get statistics';
+      throw new Error(message);
+    }
+  },
 };
 
-/**
- * Format file size in human-readable format
- */
-export const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes';
-  
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+// Health Check API
+export const healthAPI = {
+  checkHealth: async (): Promise<{
+    status: string;
+    services: Record<string, string>;
+    database_info: any;
+  }> => {
+    try {
+      const response = await api.get('/health');
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Health check failed';
+      throw new Error(message);
+    }
+  },
+
+  getSystemInfo: async (): Promise<{
+    message: string;
+    status: string;
+    version: string;
+    features: string[];
+    database: any;
+  }> => {
+    try {
+      const response = await api.get('/');
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'System info failed';
+      throw new Error(message);
+    }
+  },
 };
 
-/**
- * Format processing time
- */
-export const formatProcessingTime = (seconds: number): string => {
-  if (seconds < 60) {
-    return `${seconds.toFixed(1)}s`;
-  } else if (seconds < 3600) {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}m ${remainingSeconds.toFixed(0)}s`;
-  } else {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours}h ${minutes}m`;
-  }
-};
+// Storage Utility Functions
+export const storage = {
+  getToken: (): string | null => {
+    return localStorage.getItem('auth_token');
+  },
 
-/**
- * Format timestamp to relative time
- */
-export const formatRelativeTime = (timestamp: string): string => {
-  const now = new Date();
-  const date = new Date(timestamp);
-  const diffMs = now.getTime() - date.getTime();
-  const diffMinutes = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
+  getUser: (): User | null => {
+    const userData = localStorage.getItem('user_data');
+    return userData ? JSON.parse(userData) : null;
+  },
 
-  if (diffMinutes < 1) {
-    return 'just now';
-  } else if (diffMinutes < 60) {
-    return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
-  } else if (diffHours < 24) {
-    return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-  } else if (diffDays < 30) {
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-  } else {
-    return date.toLocaleDateString();
-  }
-};
+  clearAuth: (): void => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('user_data');
+  },
 
-/**
- * Get status badge color
- */
-export const getStatusColor = (status: string): string => {
-  switch (status) {
-    case 'completed':
-      return 'bg-green-100 text-green-800';
-    case 'processing':
-      return 'bg-blue-100 text-blue-800';
-    case 'pending':
-      return 'bg-yellow-100 text-yellow-800';
-    case 'failed':
-      return 'bg-red-100 text-red-800';
-    default:
-      return 'bg-gray-100 text-gray-800';
-  }
+  isAuthenticated: (): boolean => {
+    return !!storage.getToken();
+  },
 };
 
 export default api;
 
-// Authentication API
-export const authAPI = {
-  register: async (userData: {
-    email: string;
-    username: string;
-    password: string;
-    first_name: string;
-    last_name: string;
-  }) => {
-    const response = await fetch(`${API_BASE_URL}/auth/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(userData),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw { response: { data: error } };
-    }
-
-    return response.json();
-  },
-
-  login: async (credentials: { email: string; password: string }) => {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(credentials),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw { response: { data: error } };
-    }
-
-    return response.json();
-  },
-
-  getProfile: async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/auth/me`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw { response: { data: error } };
-    }
-
-    return response.json();
-  },
-
-  logout: async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/auth/logout`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    return response.ok;
-  },
-
-  changePassword: async (token: string, data: {
-    current_password: string;
-    new_password: string;
-  }) => {
-    const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw { response: { data: error } };
-    }
-
-    return response.json();
-  },
-
-  updateProfile: async (token: string, data: {
-    first_name?: string;
-    last_name?: string;
-    email?: string;
-  }) => {
-    const response = await fetch(`${API_BASE_URL}/auth/profile`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw { response: { data: error } };
-    }
-
-    return response.json();
-  }
-};
-
-// Update existing API functions to include auth header when token is available
-const getAuthHeader = () => {
-  const token = localStorage.getItem('auth_token');
-  return token ? { 'Authorization': `Bearer ${token}` } : {};
-};
-
-// You can now update your existing API calls to include authentication
-// For example, modify the analyzeDocument function to include auth headers:
-/*
-export const analyzeDocument = async (file: File, query: string) => {
-  const formData = new FormData();
-  formData.append('document', file);
-  formData.append('query', query);
-
-  const response = await fetch(`${API_BASE_URL}/analyze`, {
-    method: 'POST',
-    headers: {
-      ...getAuthHeader(), // Include auth header
-    },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    throw new Error('Analysis failed');
-  }
-
-  return response.json();
-};
-*/
+// Legacy healthCheck alias for backward compatibility
+export const healthCheck = healthAPI.checkHealth;
