@@ -8,8 +8,8 @@ from pathlib import Path
 import magic
 
 from crewai import Crew, Process
-from agents import financial_analyst
-from task import analyze_financial_document
+from agents import financial_analyst, data_extractor, investment_analyst, risk_analyst
+from task import comprehensive_financial_analysis
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -57,8 +57,8 @@ def run_crew(query: str, file_path: str) -> str:
     """Run the CrewAI crew for financial analysis"""
     try:
         financial_crew = Crew(
-            agents=[financial_analyst],
-            tasks=[analyze_financial_document],
+            agents=[financial_analyst, data_extractor, investment_analyst, risk_analyst],
+            tasks=[comprehensive_financial_analysis],
             process=Process.sequential,
             verbose=True
         )

@@ -12,3 +12,5 @@ docs/
 .python-version
 backups
 test_integration.py
+test.txt
+prompt.txt
