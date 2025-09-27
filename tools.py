@@ -1,21 +1,14 @@
-## Importing libraries and files
 import os
+import re
 from dotenv import load_dotenv
-
 from crewai_tools import SerperDevTool
 from crewai.tools import BaseTool
 from langchain_community.document_loaders import PyPDFLoader
 
 # Load environment variables
 load_dotenv()
-from dotenv import load_dotenv
-load_dotenv()
 
-from crewai_tools import SerperDevTool
-from crewai.tools import BaseTool
-from langchain_community.document_loaders import PyPDFLoader
-
-## Creating search tool with Serper
+# Creating search tool with Serper
 SERPER_API_KEY = os.getenv("SERPER_API_KEY")
 search_tool = SerperDevTool(api_key=SERPER_API_KEY)
 
@@ -32,19 +25,40 @@ class FinancialDocumentReader(BaseTool):
         Returns:
             str: Cleaned and processed text content from the PDF
         """
-        # If the path doesn't start with /, prepend the current directory
-        if not file_path.startswith('/'):
-            file_path = os.path.join(os.getcwd(), file_path)
-        loader = PyPDFLoader(file_path)
-        docs = loader.load()        
-        full_report = ""
-        for data in docs:
-            content = data.page_content
-            while "\n\n" in content:
-                content = content.replace("\n\n", "\n")
-            full_report += content + "\n"
+        try:
+            # Validate file exists
+            if not os.path.exists(file_path):
+                return f"Error: File {file_path} does not exist."
             
-        return full_report
+            # Validate file extension
+            if not file_path.lower().endswith('.pdf'):
+                return f"Error: File {file_path} is not a PDF file."
+            
+            # If the path doesn't start with /, prepend the current directory
+            if not file_path.startswith('/'):
+                file_path = os.path.join(os.getcwd(), file_path)
+            
+            loader = PyPDFLoader(file_path)
+            docs = loader.load()
+            
+            if not docs:
+                return "Error: PDF file appears to be empty or corrupted."
+            
+            full_report = ""
+            for data in docs:
+                content = data.page_content
+                # Clean up multiple newlines
+                content = re.sub(r'\n+', '\n', content)
+                full_report += content + "\n"
+            
+            # Limit output size to prevent memory issues
+            if len(full_report) > 100000:  # 100KB limit
+                full_report = full_report[:100000] + "\n[Content truncated due to size...]"
+                
+            return full_report
+            
+        except Exception as e:
+            return f"Error reading PDF file: {str(e)}"
 
 class InvestmentAnalyzer(BaseTool):
     name: str = "Investment Analyzer"
@@ -59,18 +73,56 @@ class InvestmentAnalyzer(BaseTool):
         Returns:
             str: Investment analysis and recommendations
         """
-        processed_data = financial_document_data
-        
-        # Clean up the data format
-        i = 0
-        while i < len(processed_data):
-            if processed_data[i:i+2] == "  ":  # Remove double spaces
-                processed_data = processed_data[:i] + processed_data[i+1:]
+        try:
+            if not financial_document_data or len(financial_document_data.strip()) == 0:
+                return "Error: No financial data provided for analysis."
+            
+            # Extract key financial metrics using regex patterns
+            revenue_pattern = r'(?:revenue|sales).*?(\$[\d,.]+ ?[bmk]?)'
+            profit_pattern = r'(?:profit|income|earnings).*?(\$[\d,.]+ ?[bmk]?)'
+            margin_pattern = r'(?:margin).*?([\d.]+%)'
+            
+            analysis = "## Investment Analysis\n\n"
+            
+            # Look for revenue information
+            revenue_matches = re.findall(revenue_pattern, financial_document_data, re.IGNORECASE)
+            if revenue_matches:
+                analysis += f"**Revenue Highlights:** Found revenue figures: {', '.join(revenue_matches[:3])}\n\n"
+            
+            # Look for profit information
+            profit_matches = re.findall(profit_pattern, financial_document_data, re.IGNORECASE)
+            if profit_matches:
+                analysis += f"**Profitability:** Identified profit metrics: {', '.join(profit_matches[:3])}\n\n"
+            
+            # Look for margin information
+            margin_matches = re.findall(margin_pattern, financial_document_data, re.IGNORECASE)
+            if margin_matches:
+                analysis += f"**Margins:** Found margin data: {', '.join(margin_matches[:3])}\n\n"
+            
+            # Basic sentiment analysis based on key terms
+            positive_terms = ['growth', 'increase', 'profit', 'strong', 'improved', 'record']
+            negative_terms = ['decline', 'decrease', 'loss', 'weak', 'challenging', 'lower']
+            
+            positive_count = sum(financial_document_data.lower().count(term) for term in positive_terms)
+            negative_count = sum(financial_document_data.lower().count(term) for term in negative_terms)
+            
+            if positive_count > negative_count:
+                analysis += "**Overall Sentiment:** Generally positive financial indicators detected.\n\n"
+            elif negative_count > positive_count:
+                analysis += "**Overall Sentiment:** Some challenging financial indicators detected.\n\n"
             else:
-                i += 1
-                
-        # TODO: Implement investment analysis logic here
-        return "Investment analysis functionality to be implemented"
+                analysis += "**Overall Sentiment:** Mixed financial indicators detected.\n\n"
+            
+            analysis += "**Investment Considerations:**\n"
+            analysis += "- Review detailed financial statements for complete analysis\n"
+            analysis += "- Consider market conditions and industry trends\n"
+            analysis += "- Evaluate long-term growth prospects\n"
+            analysis += "- Assess risk factors and competitive position\n"
+            
+            return analysis
+            
+        except Exception as e:
+            return f"Error analyzing investment data: {str(e)}"
 
 class RiskAssessor(BaseTool):
     name: str = "Risk Assessor"
@@ -85,11 +137,70 @@ class RiskAssessor(BaseTool):
         Returns:
             str: Risk assessment analysis and warnings
         """
-        # TODO: Implement risk assessment logic here
-        return "Risk assessment functionality to be implemented"
+        try:
+            if not financial_document_data or len(financial_document_data.strip()) == 0:
+                return "Error: No financial data provided for risk assessment."
+            
+            risk_assessment = "## Risk Assessment\n\n"
+            risk_score = 0
+            risks_identified = []
+            
+            # Check for common risk indicators
+            risk_indicators = {
+                'debt': {'terms': ['debt', 'loan', 'borrowing', 'liability'], 'weight': 2},
+                'litigation': {'terms': ['litigation', 'lawsuit', 'legal', 'settlement'], 'weight': 3},
+                'regulatory': {'terms': ['regulatory', 'compliance', 'violation', 'investigation'], 'weight': 3},
+                'market': {'terms': ['market risk', 'volatility', 'uncertainty', 'competition'], 'weight': 2},
+                'operational': {'terms': ['supply chain', 'disruption', 'shortage', 'delay'], 'weight': 2},
+                'financial': {'terms': ['loss', 'decline', 'decrease', 'impairment'], 'weight': 2}
+            }
+            
+            for risk_type, data in risk_indicators.items():
+                count = sum(financial_document_data.lower().count(term) for term in data['terms'])
+                if count > 0:
+                    risk_score += count * data['weight']
+                    risks_identified.append(f"{risk_type.title()} Risk: {count} indicators found")
+            
+            # Risk level assessment
+            if risk_score <= 10:
+                risk_level = "LOW"
+                risk_color = "🟢"
+            elif risk_score <= 25:
+                risk_level = "MODERATE"
+                risk_color = "🟡"
+            elif risk_score <= 50:
+                risk_level = "HIGH"
+                risk_color = "🟠"
+            else:
+                risk_level = "VERY HIGH"
+                risk_color = "🔴"
+            
+            risk_assessment += f"**Overall Risk Level:** {risk_color} {risk_level} (Score: {risk_score})\n\n"
+            
+            if risks_identified:
+                risk_assessment += "**Risk Factors Identified:**\n"
+                for risk in risks_identified[:5]:  # Limit to top 5 risks
+                    risk_assessment += f"- {risk}\n"
+                risk_assessment += "\n"
+            
+            # Risk mitigation recommendations
+            risk_assessment += "**Risk Mitigation Recommendations:**\n"
+            risk_assessment += "- Diversify investment portfolio to reduce concentration risk\n"
+            risk_assessment += "- Monitor financial metrics and market conditions regularly\n"
+            risk_assessment += "- Stay informed about regulatory changes and industry trends\n"
+            risk_assessment += "- Consider hedging strategies for market volatility\n"
+            risk_assessment += "- Evaluate management quality and corporate governance\n\n"
+            
+            # Cash flow and liquidity assessment
+            if 'cash flow' in financial_document_data.lower():
+                risk_assessment += "**Liquidity Assessment:** Cash flow information detected - review for liquidity risks\n"
+            
+            return risk_assessment
+            
+        except Exception as e:
+            return f"Error assessing risks: {str(e)}"
 
 # Create tool instances
 financial_document_tool = FinancialDocumentReader()
 investment_analysis_tool = InvestmentAnalyzer()
 risk_assessment_tool = RiskAssessor()
-

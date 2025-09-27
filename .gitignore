@@ -10,3 +10,5 @@ docs/
 .env.test.local
 .env.production.local
 .python-version
+backups
+test_integration.py
