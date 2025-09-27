@@ -1,24 +1,43 @@
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, status
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, status, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 import os
 import uuid
 import asyncio
 import logging
 from pathlib import Path
 import magic
+from datetime import datetime
+from typing import List, Optional
 
 from crewai import Crew, Process
 from agents import financial_analyst, data_extractor, investment_analyst, risk_analyst
 from task import comprehensive_financial_analysis
 
+# Database imports
+from database import init_database, get_db_session, get_database_manager
+from services import UserService, DocumentService, AnalysisService, AnalysisHistoryService
+from models import (
+    AnalysisResponse, DocumentResponse, AnalysisHistoryResponse,
+    CreateAnalysisRequest, AnalysisStatusResponse
+)
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Initialize database on startup
+try:
+    db_manager = init_database()
+    logger.info("Database initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize database: {e}")
+    raise
+
 app = FastAPI(
     title="Financial Document Analyzer",
-    description="AI-powered financial document analysis system",
-    version="1.0.0"
+    description="AI-powered financial document analysis system with persistent storage",
+    version="2.0.0"
 )
 
 # Add CORS middleware for frontend integration
@@ -34,6 +53,28 @@ app.add_middleware(
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 ALLOWED_EXTENSIONS = {'.pdf'}
 UPLOAD_DIR = "data"
+KEEP_UPLOADED_FILES = os.getenv('KEEP_UPLOADED_FILES', 'false').lower() == 'true'
+
+def get_client_info(request: Request) -> dict:
+    """Extract client information from request"""
+    return {
+        'ip_address': request.client.host if request.client else None,
+        'user_agent': request.headers.get('user-agent', None)
+    }
+
+def get_or_create_user(session: Session, request: Request) -> str:
+    """Get or create user session"""
+    # In a real application, you might use session cookies or JWT tokens
+    # For now, we'll create a new user session for each request
+    # You can extend this to handle session persistence
+    client_info = get_client_info(request)
+    user = UserService.create_user(
+        session=session,
+        ip_address=client_info['ip_address'],
+        user_agent=client_info['user_agent']
+    )
+    session.commit()
+    return user.id
 
 def validate_file(file: UploadFile) -> tuple[bool, str]:
     """Validate uploaded file"""
@@ -76,38 +117,53 @@ def run_crew(query: str, file_path: str) -> str:
 @app.get("/")
 async def root():
     """Health check endpoint"""
+    db_info = get_database_manager().get_database_info()
     return {
         "message": "Financial Document Analyzer API is running",
         "status": "healthy",
-        "version": "1.0.0"
+        "version": "2.0.0",
+        "features": ["persistent_storage", "analysis_history", "user_sessions"],
+        "database": db_info
     }
 
 @app.get("/health")
 async def health_check():
     """Detailed health check"""
+    db_healthy = get_database_manager().health_check()
     return {
-        "status": "healthy",
+        "status": "healthy" if db_healthy else "degraded",
         "services": {
             "api": "running",
+            "database": "healthy" if db_healthy else "unhealthy",
             "file_upload": "available",
             "ai_analysis": "available"
-        }
+        },
+        "database_info": get_database_manager().get_database_info()
     }
 
-@app.post("/analyze")
+@app.post("/analyze", response_model=dict)
 async def analyze_document_endpoint(
+    request: Request,
     file: UploadFile = File(..., description="PDF file to analyze (max 50MB)"),
     query: str = Form(
         default="Provide a comprehensive financial analysis of this document", 
         description="Specific analysis query or instructions"
-    )
+    ),
+    keep_file: bool = Form(default=False, description="Keep file after processing"),
+    session: Session = Depends(get_db_session)
 ):
     """Analyze financial document and provide comprehensive investment recommendations"""
     
-    file_id = str(uuid.uuid4())
+    analysis_id = None
+    document_id = None
     file_path = None
+    user_id = None
     
     try:
+        # Get or create user session
+        user_id = get_or_create_user(session, request)
+        logger.info(f"Processing request for user: {user_id}")
+        
         # Validate file
         is_valid, validation_msg = validate_file(file)
         if not is_valid:
@@ -141,12 +197,31 @@ async def analyze_document_endpoint(
         # Ensure upload directory exists
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         
-        # Save uploaded file with unique name
-        file_path = os.path.join(UPLOAD_DIR, f"financial_document_{file_id}.pdf")
+        # Generate unique filename
+        file_id = str(uuid.uuid4())
+        stored_filename = f"financial_document_{file_id}.pdf"
+        file_path = os.path.join(UPLOAD_DIR, stored_filename)
+        
+        # Save uploaded file
         with open(file_path, "wb") as f:
             f.write(content)
         
         logger.info(f"File saved: {file_path}, size: {file_size} bytes")
+        
+        # Create document record in database
+        document = DocumentService.create_document(
+            session=session,
+            user_id=user_id,
+            original_filename=file.filename,
+            stored_filename=stored_filename,
+            file_path=file_path if (keep_file or KEEP_UPLOADED_FILES) else None,
+            file_size=file_size,
+            file_type="PDF",
+            mime_type=file_mime if 'file_mime' in locals() else "application/pdf",
+            file_content=content
+        )
+        document_id = document.id
+        session.commit()
         
         # Validate and sanitize query
         if not query or not query.strip():
@@ -155,51 +230,130 @@ async def analyze_document_endpoint(
         # Limit query length to prevent abuse
         query = query.strip()[:1000]  # Max 1000 characters
         
-        logger.info(f"Starting analysis for file: {file.filename}")
+        # Create analysis record
+        analysis = AnalysisService.create_analysis(
+            session=session,
+            user_id=user_id,
+            document_id=document_id,
+            query=query,
+            analysis_type="comprehensive"
+        )
+        analysis_id = analysis.id
+        session.commit()
+        
+        # Log analysis creation
+        AnalysisHistoryService.log_action(
+            session=session,
+            analysis_id=analysis_id,
+            action="created",
+            user_id=user_id,
+            details=f"Analysis started for file: {file.filename}",
+            ip_address=get_client_info(request)['ip_address']
+        )
+        session.commit()
+        
+        logger.info(f"Starting analysis {analysis_id} for file: {file.filename}")
+        
+        # Update analysis status to processing
+        AnalysisService.update_analysis_status(session, analysis_id, "processing")
+        session.commit()
         
         # Process the financial document
         analysis_result = run_crew(query=query, file_path=file_path)
         
-        logger.info("Analysis completed successfully")
+        # Complete the analysis
+        AnalysisService.complete_analysis(
+            session=session,
+            analysis_id=analysis_id,
+            result=analysis_result,
+            summary=None,  # You could add logic to extract a summary
+            confidence_score=None,  # You could add confidence scoring
+            key_insights_count=None  # You could count key insights
+        )
+        
+        # Mark document as processed
+        DocumentService.mark_document_processed(session, document_id)
+        
+        # Log completion
+        AnalysisHistoryService.log_action(
+            session=session,
+            analysis_id=analysis_id,
+            action="completed",
+            user_id=user_id,
+            details="Analysis completed successfully"
+        )
+        session.commit()
+        
+        logger.info(f"Analysis {analysis_id} completed successfully")
         
         return {
             "status": "success",
+            "analysis_id": analysis_id,
+            "document_id": document_id,
+            "user_id": user_id,
             "file_info": {
                 "filename": file.filename,
                 "size_mb": round(file_size / 1024 / 1024, 2),
-                "processed_at": file_id
+                "processed_at": datetime.utcnow().isoformat()
             },
             "query": query,
             "analysis": analysis_result,
             "metadata": {
                 "processing_id": file_id,
                 "file_type": "PDF",
-                "analysis_timestamp": "completed"
+                "analysis_timestamp": datetime.utcnow().isoformat(),
+                "kept_file": keep_file or KEEP_UPLOADED_FILES
             }
         }
         
     except HTTPException:
+        # Mark analysis as failed if it was created
+        if analysis_id and session:
+            try:
+                AnalysisService.fail_analysis(session, analysis_id, "HTTP Exception occurred")
+                session.commit()
+            except:
+                pass
         raise  # Re-raise HTTP exceptions as-is
         
     except Exception as e:
         logger.error(f"Unexpected error processing file: {e}")
+        
+        # Mark analysis as failed if it was created
+        if analysis_id and session:
+            try:
+                AnalysisService.fail_analysis(session, analysis_id, str(e))
+                session.commit()
+            except:
+                pass
+                
         raise HTTPException(
             status_code=500, 
             detail={
                 "error": "Internal server error during document processing",
                 "details": str(e),
-                "processing_id": file_id
+                "analysis_id": analysis_id,
+                "document_id": document_id
             }
         )
     
     finally:
-        # Clean up uploaded file
+        # Clean up uploaded file if not keeping it
         if file_path and os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-                logger.info(f"Cleaned up temporary file: {file_path}")
-            except Exception as cleanup_error:
-                logger.warning(f"Failed to cleanup file {file_path}: {cleanup_error}")
+            if not (keep_file or KEEP_UPLOADED_FILES):
+                try:
+                    os.remove(file_path)
+                    logger.info(f"Cleaned up temporary file: {file_path}")
+                except Exception as cleanup_error:
+                    logger.warning(f"Failed to cleanup file {file_path}: {cleanup_error}")
+            else:
+                # Update document to reflect persistent storage
+                if document_id and session:
+                    try:
+                        DocumentService.set_document_persistent_storage(session, document_id, True)
+                        session.commit()
+                    except:
+                        pass
 
 if __name__ == "__main__":
     import uvicorn
@@ -210,3 +364,275 @@ if __name__ == "__main__":
         reload=True,
         log_level="info"
     )
+
+# Additional API endpoints for data retrieval
+
+@app.get("/analysis/history", response_model=dict)
+async def get_analysis_history(
+    request: Request,
+    page: int = 1,
+    page_size: int = 10,
+    status: Optional[str] = None,
+    session: Session = Depends(get_db_session)
+):
+    """Get analysis history for the current user session"""
+    try:
+        # For now, we create a new user session since we don't have session persistence
+        # In a real app, you'd get the user from session/JWT token
+        user_id = get_or_create_user(session, request)
+        
+        analyses, total_count = AnalysisService.get_user_analyses(
+            session=session,
+            user_id=user_id,
+            page=page,
+            page_size=page_size,
+            status_filter=status
+        )
+        
+        # Convert to response format
+        analysis_responses = []
+        for analysis in analyses:
+            # Get document info
+            document = DocumentService.get_document_by_id(session, analysis.document_id)
+            document_info = DocumentResponse.from_orm(document) if document else None
+            
+            analysis_resp = AnalysisResponse.from_orm(analysis)
+            analysis_resp.document = document_info
+            analysis_responses.append(analysis_resp)
+        
+        has_more = (page * page_size) < total_count
+        
+        return {
+            "analyses": [resp.dict() for resp in analysis_responses],
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total_count": total_count,
+                "has_more": has_more,
+                "total_pages": (total_count + page_size - 1) // page_size
+            },
+            "filters": {
+                "status": status
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting analysis history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/analysis/{analysis_id}", response_model=dict)
+async def get_analysis_by_id(
+    analysis_id: str,
+    request: Request,
+    session: Session = Depends(get_db_session)
+):
+    """Get specific analysis by ID"""
+    try:
+        analysis = AnalysisService.get_analysis_by_id(session, analysis_id)
+        
+        if not analysis:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        
+        # Get document info
+        document = DocumentService.get_document_by_id(session, analysis.document_id)
+        document_info = DocumentResponse.from_orm(document) if document else None
+        
+        # Log the view action
+        user_id = get_or_create_user(session, request)
+        AnalysisHistoryService.log_action(
+            session=session,
+            analysis_id=analysis_id,
+            action="viewed",
+            user_id=user_id,
+            ip_address=get_client_info(request)['ip_address']
+        )
+        session.commit()
+        
+        analysis_resp = AnalysisResponse.from_orm(analysis)
+        analysis_resp.document = document_info
+        
+        return {
+            "analysis": analysis_resp.dict(),
+            "document": document_info.dict() if document_info else None
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting analysis {analysis_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/documents", response_model=dict)
+async def get_user_documents(
+    request: Request,
+    page: int = 1,
+    page_size: int = 10,
+    session: Session = Depends(get_db_session)
+):
+    """Get user's uploaded documents"""
+    try:
+        user_id = get_or_create_user(session, request)
+        
+        documents, total_count = DocumentService.get_user_documents(
+            session=session,
+            user_id=user_id,
+            page=page,
+            page_size=page_size
+        )
+        
+        document_responses = [DocumentResponse.from_orm(doc) for doc in documents]
+        has_more = (page * page_size) < total_count
+        
+        return {
+            "documents": [resp.dict() for resp in document_responses],
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total_count": total_count,
+                "has_more": has_more,
+                "total_pages": (total_count + page_size - 1) // page_size
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting user documents: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/analysis/{analysis_id}")
+async def delete_analysis(
+    analysis_id: str,
+    request: Request,
+    session: Session = Depends(get_db_session)
+):
+    """Delete a specific analysis"""
+    try:
+        user_id = get_or_create_user(session, request)
+        
+        # Check if analysis exists and belongs to user
+        analysis = AnalysisService.get_analysis_by_id(session, analysis_id)
+        if not analysis:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        
+        if analysis.user_id != user_id:
+            raise HTTPException(status_code=403, detail="Not authorized to delete this analysis")
+        
+        # Log the deletion action before deleting
+        AnalysisHistoryService.log_action(
+            session=session,
+            analysis_id=analysis_id,
+            action="deleted",
+            user_id=user_id,
+            details=f"Analysis deleted: {analysis.query[:100]}...",
+            ip_address=get_client_info(request)['ip_address']
+        )
+        
+        # Delete the analysis
+        success = AnalysisService.delete_analysis(session, analysis_id, user_id)
+        
+        if success:
+            session.commit()
+            return {"message": "Analysis deleted successfully", "analysis_id": analysis_id}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to delete analysis")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting analysis {analysis_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/statistics", response_model=dict)
+async def get_analysis_statistics(
+    request: Request,
+    session: Session = Depends(get_db_session)
+):
+    """Get analysis statistics for the current user"""
+    try:
+        user_id = get_or_create_user(session, request)
+        
+        # Get user-specific statistics
+        user_stats = AnalysisService.get_analysis_statistics(session, user_id)
+        
+        # Get overall system statistics (optional)
+        system_stats = AnalysisService.get_analysis_statistics(session)
+        
+        return {
+            "user_statistics": user_stats,
+            "system_statistics": system_stats,
+            "database_info": get_database_manager().get_database_info()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/analysis/{analysis_id}/status")
+async def get_analysis_status(
+    analysis_id: str,
+    session: Session = Depends(get_db_session)
+):
+    """Get the current status of an analysis (useful for polling during processing)"""
+    try:
+        analysis = AnalysisService.get_analysis_by_id(session, analysis_id)
+        
+        if not analysis:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        
+        # Calculate progress percentage based on status
+        progress_map = {
+            "pending": 0,
+            "processing": 50,
+            "completed": 100,
+            "failed": 100
+        }
+        
+        status_response = AnalysisStatusResponse(
+            status=analysis.status,
+            message=f"Analysis is {analysis.status}",
+            analysis_id=analysis_id,
+            progress_percentage=progress_map.get(analysis.status, 0)
+        )
+        
+        return status_response.dict()
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting analysis status {analysis_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# File management and maintenance endpoints
+from file_manager import get_file_manager
+
+@app.post("/admin/maintenance")
+async def run_maintenance(session: Session = Depends(get_db_session)):
+    """Run file system maintenance (admin only)"""
+    try:
+        file_manager = get_file_manager()
+        results = file_manager.perform_maintenance()
+        
+        return {
+            "status": "success",
+            "maintenance_results": results,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error during maintenance: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/admin/storage-stats")
+async def get_storage_statistics():
+    """Get storage usage statistics"""
+    try:
+        file_manager = get_file_manager()
+        stats = file_manager.get_storage_statistics()
+        
+        return {
+            "storage_statistics": stats,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting storage stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

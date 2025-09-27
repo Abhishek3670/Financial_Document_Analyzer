@@ -1,0 +1,416 @@
+"""
+Database service layer for Financial Document Analyzer
+Provides CRUD operations and business logic for all models
+"""
+import os
+import hashlib
+import logging
+from datetime import datetime, timedelta
+from typing import List, Optional, Tuple
+from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_, desc, func
+
+from models import User, Document, Analysis, AnalysisHistory
+from models import DocumentResponse, AnalysisResponse, AnalysisHistoryResponse
+from database import get_database_manager
+
+logger = logging.getLogger(__name__)
+
+class UserService:
+    """Service for user operations"""
+    
+    @staticmethod
+    def create_user(session: Session, ip_address: str = None, user_agent: str = None) -> User:
+        """Create a new user session"""
+        try:
+            user = User(ip_address=ip_address, user_agent=user_agent)
+            session.add(user)
+            session.flush()  # Get ID without committing
+            logger.info(f"Created new user session: {user.id}")
+            return user
+        except Exception as e:
+            logger.error(f"Error creating user: {e}")
+            raise
+    
+    @staticmethod
+    def get_user_by_id(session: Session, user_id: str) -> Optional[User]:
+        """Get user by ID"""
+        return session.query(User).filter(User.id == user_id).first()
+    
+    @staticmethod
+    def get_user_by_session_id(session: Session, session_id: str) -> Optional[User]:
+        """Get user by session ID"""
+        return session.query(User).filter(User.session_id == session_id).first()
+    
+    @staticmethod
+    def update_user_activity(session: Session, user_id: str) -> bool:
+        """Update user's last activity timestamp"""
+        try:
+            user = session.query(User).filter(User.id == user_id).first()
+            if user:
+                user.last_activity = datetime.utcnow()
+                session.flush()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error updating user activity: {e}")
+            return False
+    
+    @staticmethod
+    def cleanup_inactive_users(session: Session, days: int = 30) -> int:
+        """Clean up users inactive for specified days"""
+        try:
+            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            inactive_users = session.query(User).filter(
+                User.last_activity < cutoff_date
+            ).all()
+            
+            count = len(inactive_users)
+            for user in inactive_users:
+                session.delete(user)  # Cascade will handle related records
+            
+            session.flush()
+            logger.info(f"Cleaned up {count} inactive users older than {days} days")
+            return count
+        except Exception as e:
+            logger.error(f"Error cleaning up inactive users: {e}")
+            return 0
+
+class DocumentService:
+    """Service for document operations"""
+    
+    @staticmethod
+    def create_document(
+        session: Session,
+        user_id: str,
+        original_filename: str,
+        stored_filename: str,
+        file_path: str,
+        file_size: int,
+        file_type: str = "PDF",
+        mime_type: str = "application/pdf",
+        file_content: bytes = None
+    ) -> Document:
+        """Create a new document record"""
+        try:
+            # Calculate file hash if content provided
+            file_hash = None
+            if file_content:
+                file_hash = hashlib.sha256(file_content).hexdigest()
+            
+            document = Document(
+                user_id=user_id,
+                original_filename=original_filename,
+                stored_filename=stored_filename,
+                file_path=file_path,
+                file_size=file_size,
+                file_type=file_type,
+                mime_type=mime_type,
+                file_hash=file_hash
+            )
+            
+            session.add(document)
+            session.flush()
+            logger.info(f"Created document record: {document.id} for user: {user_id}")
+            return document
+        except Exception as e:
+            logger.error(f"Error creating document: {e}")
+            raise
+    
+    @staticmethod
+    def get_document_by_id(session: Session, document_id: str) -> Optional[Document]:
+        """Get document by ID"""
+        return session.query(Document).filter(Document.id == document_id).first()
+    
+    @staticmethod
+    def get_user_documents(
+        session: Session, 
+        user_id: str, 
+        page: int = 1, 
+        page_size: int = 10
+    ) -> Tuple[List[Document], int]:
+        """Get user's documents with pagination"""
+        try:
+            offset = (page - 1) * page_size
+            
+            query = session.query(Document).filter(Document.user_id == user_id)
+            total_count = query.count()
+            
+            documents = query.order_by(desc(Document.upload_timestamp))\
+                           .offset(offset)\
+                           .limit(page_size)\
+                           .all()
+            
+            return documents, total_count
+        except Exception as e:
+            logger.error(f"Error getting user documents: {e}")
+            return [], 0
+    
+    @staticmethod
+    def find_duplicate_documents(session: Session, file_hash: str) -> List[Document]:
+        """Find documents with the same hash"""
+        if not file_hash:
+            return []
+        return session.query(Document).filter(Document.file_hash == file_hash).all()
+    
+    @staticmethod
+    def mark_document_processed(session: Session, document_id: str) -> bool:
+        """Mark document as processed"""
+        try:
+            document = session.query(Document).filter(Document.id == document_id).first()
+            if document:
+                document.is_processed = True
+                session.flush()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error marking document as processed: {e}")
+            return False
+    
+    @staticmethod
+    def set_document_persistent_storage(session: Session, document_id: str, is_permanent: bool) -> bool:
+        """Set document persistent storage flag"""
+        try:
+            document = session.query(Document).filter(Document.id == document_id).first()
+            if document:
+                document.is_stored_permanently = is_permanent
+                session.flush()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error setting document storage flag: {e}")
+            return False
+
+class AnalysisService:
+    """Service for analysis operations"""
+    
+    @staticmethod
+    def create_analysis(
+        session: Session,
+        user_id: str,
+        document_id: str,
+        query: str,
+        analysis_type: str = "comprehensive"
+    ) -> Analysis:
+        """Create a new analysis record"""
+        try:
+            analysis = Analysis(
+                user_id=user_id,
+                document_id=document_id,
+                query=query,
+                analysis_type=analysis_type,
+                status="pending",
+                result=""  # Will be updated when processing completes
+            )
+            
+            session.add(analysis)
+            session.flush()
+            logger.info(f"Created analysis record: {analysis.id}")
+            return analysis
+        except Exception as e:
+            logger.error(f"Error creating analysis: {e}")
+            raise
+    
+    @staticmethod
+    def update_analysis_status(session: Session, analysis_id: str, status: str) -> bool:
+        """Update analysis status"""
+        try:
+            analysis = session.query(Analysis).filter(Analysis.id == analysis_id).first()
+            if analysis:
+                analysis.status = status
+                if status == "processing":
+                    analysis.started_at = datetime.utcnow()
+                session.flush()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error updating analysis status: {e}")
+            return False
+    
+    @staticmethod
+    def complete_analysis(
+        session: Session,
+        analysis_id: str,
+        result: str,
+        summary: str = None,
+        confidence_score: float = None,
+        key_insights_count: int = None
+    ) -> bool:
+        """Complete analysis with results"""
+        try:
+            analysis = session.query(Analysis).filter(Analysis.id == analysis_id).first()
+            if analysis:
+                analysis.result = result
+                analysis.summary = summary
+                analysis.completed_at = datetime.utcnow()
+                analysis.status = "completed"
+                analysis.confidence_score = confidence_score
+                analysis.key_insights_count = key_insights_count
+                
+                # Calculate processing time
+                if analysis.started_at:
+                    processing_time = (analysis.completed_at - analysis.started_at).total_seconds()
+                    analysis.processing_time_seconds = processing_time
+                
+                session.flush()
+                logger.info(f"Completed analysis: {analysis_id}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error completing analysis: {e}")
+            return False
+    
+    @staticmethod
+    def fail_analysis(session: Session, analysis_id: str, error_message: str) -> bool:
+        """Mark analysis as failed"""
+        try:
+            analysis = session.query(Analysis).filter(Analysis.id == analysis_id).first()
+            if analysis:
+                analysis.status = "failed"
+                analysis.error_message = error_message
+                analysis.completed_at = datetime.utcnow()
+                session.flush()
+                logger.info(f"Failed analysis: {analysis_id} - {error_message}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error failing analysis: {e}")
+            return False
+    
+    @staticmethod
+    def get_analysis_by_id(session: Session, analysis_id: str) -> Optional[Analysis]:
+        """Get analysis by ID"""
+        return session.query(Analysis).filter(Analysis.id == analysis_id).first()
+    
+    @staticmethod
+    def get_user_analyses(
+        session: Session,
+        user_id: str,
+        page: int = 1,
+        page_size: int = 10,
+        status_filter: str = None
+    ) -> Tuple[List[Analysis], int]:
+        """Get user's analyses with pagination and optional status filter"""
+        try:
+            offset = (page - 1) * page_size
+            
+            query = session.query(Analysis).filter(Analysis.user_id == user_id)
+            
+            if status_filter:
+                query = query.filter(Analysis.status == status_filter)
+            
+            total_count = query.count()
+            
+            analyses = query.order_by(desc(Analysis.started_at))\
+                          .offset(offset)\
+                          .limit(page_size)\
+                          .all()
+            
+            return analyses, total_count
+        except Exception as e:
+            logger.error(f"Error getting user analyses: {e}")
+            return [], 0
+    
+    @staticmethod
+    def delete_analysis(session: Session, analysis_id: str, user_id: str) -> bool:
+        """Delete analysis (with user verification)"""
+        try:
+            analysis = session.query(Analysis).filter(
+                and_(Analysis.id == analysis_id, Analysis.user_id == user_id)
+            ).first()
+            
+            if analysis:
+                session.delete(analysis)
+                session.flush()
+                logger.info(f"Deleted analysis: {analysis_id}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error deleting analysis: {e}")
+            return False
+    
+    @staticmethod
+    def get_analysis_statistics(session: Session, user_id: str = None) -> dict:
+        """Get analysis statistics"""
+        try:
+            base_query = session.query(Analysis)
+            if user_id:
+                base_query = base_query.filter(Analysis.user_id == user_id)
+            
+            total_analyses = base_query.count()
+            completed_analyses = base_query.filter(Analysis.status == "completed").count()
+            failed_analyses = base_query.filter(Analysis.status == "failed").count()
+            pending_analyses = base_query.filter(Analysis.status == "pending").count()
+            
+            # Average processing time for completed analyses
+            avg_processing_time = base_query.filter(
+                and_(Analysis.status == "completed", Analysis.processing_time_seconds.isnot(None))
+            ).with_entities(func.avg(Analysis.processing_time_seconds)).scalar()
+            
+            return {
+                "total_analyses": total_analyses,
+                "completed_analyses": completed_analyses,
+                "failed_analyses": failed_analyses,
+                "pending_analyses": pending_analyses,
+                "success_rate": round((completed_analyses / total_analyses * 100), 2) if total_analyses > 0 else 0,
+                "average_processing_time_seconds": round(avg_processing_time, 2) if avg_processing_time else 0
+            }
+        except Exception as e:
+            logger.error(f"Error getting analysis statistics: {e}")
+            return {}
+
+class AnalysisHistoryService:
+    """Service for analysis history operations"""
+    
+    @staticmethod
+    def log_action(
+        session: Session,
+        analysis_id: str,
+        action: str,
+        user_id: str,
+        details: str = None,
+        ip_address: str = None
+    ) -> AnalysisHistory:
+        """Log an action in analysis history"""
+        try:
+            history_entry = AnalysisHistory(
+                analysis_id=analysis_id,
+                action=action,
+                user_id=user_id,
+                details=details,
+                ip_address=ip_address
+            )
+            
+            session.add(history_entry)
+            session.flush()
+            return history_entry
+        except Exception as e:
+            logger.error(f"Error logging analysis history: {e}")
+            raise
+    
+    @staticmethod
+    def get_analysis_history(
+        session: Session,
+        analysis_id: str,
+        page: int = 1,
+        page_size: int = 10
+    ) -> Tuple[List[AnalysisHistory], int]:
+        """Get history for a specific analysis"""
+        try:
+            offset = (page - 1) * page_size
+            
+            query = session.query(AnalysisHistory).filter(
+                AnalysisHistory.analysis_id == analysis_id
+            )
+            
+            total_count = query.count()
+            
+            history = query.order_by(desc(AnalysisHistory.timestamp))\
+                          .offset(offset)\
+                          .limit(page_size)\
+                          .all()
+            
+            return history, total_count
+        except Exception as e:
+            logger.error(f"Error getting analysis history: {e}")
+            return [], 0
