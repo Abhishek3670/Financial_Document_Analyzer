@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from crewai import Crew, Process
-from agents import (
+from agents_with_observability import (
     financial_analyst, data_extractor, investment_analyst, risk_analyst,
     document_verifier, investment_specialist, risk_assessor, report_coordinator
 )
@@ -1300,3 +1300,83 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+
+# LLM Observability endpoint
+@app.get("/metrics/llm", response_model=dict)
+async def get_llm_metrics(current_user: User = Depends(get_current_user)):
+    """Get LLM observability metrics"""
+    try:
+        from agents_with_observability import get_llm_metrics
+        metrics = get_llm_metrics()
+        
+        return {
+            "status": "success",
+            "data": metrics,
+            "user_id": current_user.id
+        }
+    except Exception as e:
+        logger.error(f"Failed to retrieve LLM metrics: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve LLM metrics: {str(e)}"
+        )
+
+# Redis Cache endpoints
+@app.get("/cache/stats", response_model=dict)
+async def get_cache_stats(current_user: User = Depends(get_current_user)):
+    """Get Redis cache statistics"""
+    try:
+        from redis_cache import redis_cache
+        stats = redis_cache.get_stats()
+        
+        return {
+            "status": "success",
+            "data": stats,
+            "user_id": current_user.id
+        }
+    except Exception as e:
+        logger.error(f"Failed to retrieve cache stats: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve cache stats: {str(e)}"
+        )
+
+@app.post("/cache/invalidate", response_model=dict)
+async def invalidate_cache(
+    cache_type: str = Form(...),
+    pattern: str = Form(None),
+    current_user: User = Depends(get_current_user)
+):
+    """Invalidate cache entries"""
+    try:
+        from redis_cache import redis_cache, invalidate_analysis_cache, invalidate_llm_cache
+        
+        if cache_type == "analysis":
+            invalidate_analysis_cache()
+        elif cache_type == "llm":
+            invalidate_llm_cache()
+        elif cache_type == "pattern" and pattern:
+            count = redis_cache.flush_pattern(pattern)
+            return {
+                "status": "success",
+                "message": f"Invalidated {count} cache entries matching pattern: {pattern}",
+                "user_id": current_user.id
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid cache_type. Use 'analysis', 'llm', or 'pattern' with pattern parameter"
+            )
+        
+        return {
+            "status": "success",
+            "message": f"Cache invalidated for type: {cache_type}",
+            "user_id": current_user.id
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to invalidate cache: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to invalidate cache: {str(e)}"
+        )
