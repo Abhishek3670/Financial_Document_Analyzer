@@ -101,7 +101,7 @@ const Header: React.FC = () => {
                 <FileText className="w-8 h-8 text-green-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Wingily FinAnalyzer</h1>
+                <h1 className="text-xl font-bold text-gray-900">FinAnalyzer</h1>
                 <p className="text-sm text-gray-500">AI-Powered Financial Document Analysis</p>
               </div>
             </div>
