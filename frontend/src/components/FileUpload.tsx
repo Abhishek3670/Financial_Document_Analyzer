@@ -1,8 +1,8 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, X, Loader2, AlertCircle } from 'lucide-react';
-import axios from 'axios';
+import { Upload, FileText, X, Loader2, AlertCircle, Save } from 'lucide-react';
 import { AnalysisResponse } from '../types';
+import { analyzeDocument } from '../api';
 
 interface FileUploadProps {
   onAnalysisComplete: (result: AnalysisResponse) => void;
@@ -17,6 +17,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [query, setQuery] = useState('Provide a comprehensive financial analysis of this document');
+  const [keepFile, setKeepFile] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
 
@@ -58,28 +59,24 @@ const FileUpload: React.FC<FileUploadProps> = ({
     setProgress(0);
 
     try {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('query', query);
-
-      const response = await axios.post<AnalysisResponse>(
-        'http://localhost:8000/analyze',
-        formData,
+      const result = await analyzeDocument(
         {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              setProgress(progress);
-            }
-          },
-          timeout: 300000, // 5 minutes timeout
+          file: selectedFile,
+          query,
+          keep_file: keepFile
+        },
+        (progress) => {
+          setProgress(progress);
         }
       );
 
-      onAnalysisComplete(response.data);
+      onAnalysisComplete(result);
+      
+      // Reset form on success
+      setSelectedFile(null);
+      setQuery('Provide a comprehensive financial analysis of this document');
+      setKeepFile(false);
+      
     } catch (err: any) {
       console.error('Analysis error:', err);
       if (err.response?.data?.detail) {
@@ -105,7 +102,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
   };
 
   return (
-    <div className="card max-w-2xl mx-auto">
+    <div className="bg-white rounded-lg shadow-sm border p-6 max-w-2xl mx-auto">
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* File Upload Area */}
         <div>
@@ -176,6 +173,22 @@ const FileUpload: React.FC<FileUploadProps> = ({
           />
         </div>
 
+        {/* Keep File Option */}
+        <div className="flex items-center space-x-2">
+          <input
+            id="keepFile"
+            type="checkbox"
+            checked={keepFile}
+            onChange={(e) => setKeepFile(e.target.checked)}
+            disabled={isLoading}
+            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+          />
+          <label htmlFor="keepFile" className="flex items-center text-sm font-medium text-gray-700 cursor-pointer">
+            <Save className="w-4 h-4 mr-1" />
+            Keep file after analysis (for future reference)
+          </label>
+        </div>
+
         {/* Error Message */}
         {error && (
           <div className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-lg">
@@ -205,11 +218,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
           type="submit"
           disabled={!selectedFile || isLoading}
           className={`
-            w-full btn-primary flex items-center justify-center space-x-2
-            ${(!selectedFile || isLoading) 
-              ? 'opacity-50 cursor-not-allowed' 
-              : ''
-            }
+            w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed
+            text-white font-medium py-3 px-4 rounded-lg transition-colors
+            flex items-center justify-center space-x-2
           `}
         >
           {isLoading ? (
@@ -224,6 +235,14 @@ const FileUpload: React.FC<FileUploadProps> = ({
             </>
           )}
         </button>
+
+        {/* Help Text */}
+        <div className="text-xs text-gray-500 text-center">
+          <p>
+            Your document will be analyzed using AI-powered financial analysis agents.
+            {keepFile && " The file will be stored for future reference."}
+          </p>
+        </div>
       </form>
     </div>
   );
