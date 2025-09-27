@@ -130,7 +130,7 @@ const AnalysisHistory: React.FC<AnalysisHistoryProps> = ({ onViewAnalysis }) => 
   };
 
   const filteredAnalyses = analyses.filter(analysis => {
-    if (searchTerm && !analysis.query.toLowerCase().includes(searchTerm.toLowerCase()) &&
+    if (searchTerm && !analysis.query?.toLowerCase()?.includes(searchTerm.toLowerCase()) &&
         !analysis.document?.original_filename?.toLowerCase().includes(searchTerm.toLowerCase())) {
       return false;
     }

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { FileText, Download, ArrowLeft, Clock, Database, AlertCircle } from 'lucide-react';
 import type { AnalysisResponse } from '../types';
+import { documentAPI } from '../api';
 
 interface AnalysisResultsProps {
   result: AnalysisResponse;
@@ -11,6 +12,25 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
   result, 
   onNewAnalysis 
 }) => {
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownloadReport = async () => {
+    if (!result.id) return;
+    
+    setIsDownloading(true);
+    try {
+      console.log('Analysis result for download:', result);
+      console.log('Analysis ID:', result.id);
+      const filename = `analysis-report-${result.id}.html`;
+      await documentAPI.downloadAnalysisReport(result.id, filename, 'html');
+    } catch (error: any) {
+      console.error('Failed to download report:', error);
+      const errorMessage = error?.response?.data?.detail || error?.message || 'Unknown error occurred';
+      alert(`Failed to download report: ${errorMessage}. Please try again.`);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
   const formatAnalysis = (analysis: string) => {
     // Handle empty or null analysis
     if (!analysis || analysis.trim() === '') {
@@ -182,9 +202,13 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
             </div>
           </div>
           
-          <button className="btn-secondary flex items-center space-x-2">
+          <button 
+            className="btn-secondary flex items-center space-x-2" 
+            onClick={handleDownloadReport}
+            disabled={isDownloading}
+          >
             <Download className="w-4 h-4" />
-            <span>Download Report</span>
+            <span>{isDownloading ? 'Downloading...' : 'Download Report'}</span>
           </button>
         </div>
         

@@ -101,10 +101,12 @@ export interface Document {
 export interface Analysis {
   id: string;
   document_id: string;
-  query: string;
+  original_filename?: string;
+  query?: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   result?: string;
   created_at: string;
+  updated_at?: string;
   completed_at?: string;
   document?: Document;
 }
@@ -277,7 +279,8 @@ export const documentAPI = {
   uploadAndAnalyze: async (
     file: File,
     query: string = 'Provide a comprehensive financial analysis of this document',
-    keepFile: boolean = false
+    keepFile: boolean = false,
+    onProgress?: (progress: number) => void
   ): Promise<UploadResponse> => {
     try {
       const formData = new FormData();
@@ -293,7 +296,7 @@ export const documentAPI = {
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {
             const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            console.log(`Upload Progress: ${percentCompleted}%`);
+            onProgress?.(percentCompleted);
           }
         },
       });
@@ -403,6 +406,101 @@ export const documentAPI = {
       throw new Error(message);
     }
   },
+
+  // Export analysis report
+
+  // Download analysis report
+  downloadAnalysisReport: async (analysisId: string, filename?: string, format: string = 'html'): Promise<void> => {
+    try {
+      const blob = await documentAPI.exportAnalysisReport(analysisId, format);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || `analysis-report-${analysisId}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download analysis error:', error);
+      throw error;
+    }
+  },
+
+  exportAnalysisReport: async (analysisId: string, format: string = 'html'): Promise<Blob> => {
+    console.log('Attempting to export analysis:', analysisId, 'format:', format);
+    try {
+      const response = await api.get(`/analysis/${analysisId}/export`, {
+        params: { format },
+        responseType: 'blob'
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Export analysis error:', error);
+      throw error;
+    }
+  },
+
+  // Upload with progress tracking
+  uploadAndAnalyzeWithProgress: async (
+    file: File,
+    query: string,
+    keepFile: boolean = false,
+    onProgress?: (progress: number) => void
+  ): Promise<UploadResponse> => {
+    try {
+      return new Promise((resolve, reject) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('query', query);
+        formData.append('keep_file', keepFile.toString());
+
+        const xhr = new XMLHttpRequest();
+
+        // Track upload progress
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable && onProgress) {
+            const progress = (event.loaded / event.total) * 100;
+            onProgress(progress);
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status === 200) {
+            try {
+              const result = JSON.parse(xhr.responseText);
+              resolve(result);
+            } catch (parseError) {
+              reject(new Error('Failed to parse response'));
+            }
+          } else {
+            reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          reject(new Error('Network error during upload'));
+        });
+
+        xhr.addEventListener('timeout', () => {
+          reject(new Error('Upload timeout'));
+        });
+
+        // Configure request
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        }
+
+        xhr.timeout = 5 * 60 * 1000; // 5 minutes timeout
+        xhr.open('POST', `${API_BASE_URL}/analyze`);
+        xhr.send(formData);
+      });
+    } catch (error) {
+      console.error('Upload and analyze error:', error);
+      throw error;
+    }
+  }
 };
 
 // Health Check API

@@ -56,3 +56,6 @@ frontend/src/components/AuthSystemDemo.tsx
 frontend/src/components/DemoTestInstructions.tsx
 frontend/src/App.tsx.current-20250927-155650
 financial_document_analyzer_demo.ipynb
+
+test_*
+final_code_clean/

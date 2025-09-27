@@ -12,8 +12,15 @@ from datetime import datetime
 from typing import List, Optional
 
 from crewai import Crew, Process
-from agents import financial_analyst, data_extractor, investment_analyst, risk_analyst
-from task import comprehensive_financial_analysis
+from agents import (
+    financial_analyst, data_extractor, investment_analyst, risk_analyst,
+    document_verifier, investment_specialist, risk_assessor, report_coordinator
+)
+from task import (
+    comprehensive_financial_analysis,
+    document_verification_task, financial_analysis_task,
+    investment_analysis_task, risk_assessment_task, report_synthesis_task
+)
 
 # Database imports
 from database import init_database, get_db_session, get_database_manager
@@ -263,6 +270,80 @@ Based on the document content:
 *This basic analysis was generated automatically when our advanced AI system encountered technical difficulties. Please try again for detailed insights.*"""
 
     return analysis
+
+
+def run_enhanced_multi_agent_crew(query: str, file_path: str) -> str:
+    """Run the enhanced CrewAI crew with specialized agents for comprehensive financial analysis"""
+    try:
+        logger.info("Starting enhanced multi-agent financial analysis workflow")
+        
+        # Create the enhanced crew with specialized agents and tasks
+        enhanced_financial_crew = Crew(
+            agents=[
+                document_verifier,
+                financial_analyst, 
+                investment_specialist,
+                risk_assessor,
+                report_coordinator
+            ],
+            tasks=[
+                document_verification_task,
+                financial_analysis_task,
+                investment_analysis_task,
+                risk_assessment_task,
+                report_synthesis_task
+            ],
+            process=Process.sequential,
+            verbose=True,
+            manager_llm=None,  # Use sequential process without manager
+            # Enable memory and planning for better coordination
+            memory=True
+        )
+
+        # Execute the enhanced workflow
+        result = enhanced_financial_crew.kickoff({
+            "query": query, 
+            "file_path": file_path
+        })
+        
+        logger.info(f"Enhanced CrewAI workflow completed. Result type: {type(result)}")
+        logger.info(f"Enhanced CrewAI result length: {len(str(result)) if result else 0}")
+        logger.info(f"Enhanced CrewAI result preview: {str(result)[:200] if result else 'None'}")
+        
+        # Process the result from the enhanced workflow
+        if result is None:
+            result = "No analysis result was generated from the enhanced workflow. Please try again."
+        elif hasattr(result, "raw"):
+            result = str(result.raw)
+        else:
+            result = str(result)
+            
+        # Validate result quality
+        if len(result.strip()) < 100:
+            logger.warning(f"Enhanced CrewAI result appears incomplete: {result[:100]}")
+            # Fall back to the original single-agent crew
+            logger.info("Falling back to original crew configuration")
+            return run_crew(query, file_path)
+            
+        return result
+        
+    except Exception as e:
+        logger.error(f"Enhanced crew workflow error: {e}")
+        logger.info("Falling back to original crew configuration due to error")
+        # Fall back to the original crew configuration
+        return run_crew(query, file_path)
+
+def run_crew_with_mode(query: str, file_path: str, use_enhanced: bool = True) -> str:
+    """Run crew analysis with option to choose enhanced multi-agent or original single-agent mode"""
+    if use_enhanced:
+        try:
+            return run_enhanced_multi_agent_crew(query, file_path)
+        except Exception as e:
+            logger.warning(f"Enhanced mode failed, falling back to original: {e}")
+            return run_crew(query, file_path)
+    else:
+        return run_crew(query, file_path)
+
 
 
 @app.get("/")
@@ -652,7 +733,7 @@ async def analyze_document_endpoint(
         session.commit()
         
         # Process the financial document
-        analysis_result = run_crew(query=query, file_path=file_path)
+        analysis_result = run_crew_with_mode(query=query, file_path=file_path, use_enhanced=True)
         
         # Complete the analysis - with better error handling
         logger.info(f"Saving analysis result of length: {len(analysis_result)}")
@@ -1035,3 +1116,187 @@ async def get_storage_statistics():
     except Exception as e:
         logger.error(f"Error getting storage stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# Export functionality
+from fastapi.responses import Response
+from datetime import datetime
+import html
+
+@app.get("/analysis/{analysis_id}/export")
+async def export_analysis_report(
+    analysis_id: str,
+    format: str = "html",
+    session: Session = Depends(get_db_session),
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """Export analysis report in various formats"""
+    try:
+        # Get the analysis
+        analysis = AnalysisService.get_analysis(session, analysis_id)
+        if not analysis:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        
+        # Check if user has access to this analysis
+        if analysis.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Generate report content
+        report_html = generate_analysis_report_html(analysis)
+        
+        if format == "html":
+            response = Response(
+                content=report_html,
+                media_type="text/html",
+                headers={
+                    "Content-Disposition": f"attachment; filename=analysis_report_{analysis_id}.html"
+                }
+            )
+            return response
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported format")
+            
+    except Exception as e:
+        logger.error(f"Error exporting analysis {analysis_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+def generate_analysis_report_html(analysis) -> str:
+    """Generate HTML report for analysis"""
+    
+    # Format the analysis result for display
+    result_content = html.escape(str(analysis.result))
+    
+    html_template = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Financial Analysis Report</title>
+        <style>
+            body {{
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                line-height: 1.6;
+                margin: 0;
+                padding: 20px;
+                background-color: #f5f5f5;
+            }}
+            .report-container {{
+                max-width: 800px;
+                margin: 0 auto;
+                background: white;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }}
+            .header {{
+                text-align: center;
+                margin-bottom: 30px;
+                padding-bottom: 20px;
+                border-bottom: 2px solid #e0e0e0;
+            }}
+            .header h1 {{
+                color: #2c3e50;
+                margin-bottom: 10px;
+            }}
+            .header p {{
+                color: #7f8c8d;
+                margin: 5px 0;
+            }}
+            .section {{
+                margin-bottom: 25px;
+            }}
+            .section h2 {{
+                color: #34495e;
+                border-left: 4px solid #3498db;
+                padding-left: 15px;
+                margin-bottom: 15px;
+            }}
+            .meta-info {{
+                background: #f8f9fa;
+                padding: 15px;
+                border-radius: 5px;
+                margin-bottom: 20px;
+            }}
+            .meta-row {{
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 8px;
+            }}
+            .meta-label {{
+                font-weight: bold;
+                color: #555;
+            }}
+            .analysis-content {{
+                background: #fff;
+                border: 1px solid #e0e0e0;
+                border-radius: 5px;
+                padding: 20px;
+                white-space: pre-wrap;
+                font-family: 'Courier New', monospace;
+                font-size: 14px;
+                line-height: 1.5;
+            }}
+            .footer {{
+                text-align: center;
+                margin-top: 30px;
+                padding-top: 20px;
+                border-top: 1px solid #e0e0e0;
+                color: #7f8c8d;
+                font-size: 12px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="report-container">
+            <div class="header">
+                <h1>Financial Analysis Report</h1>
+                <p>Generated by Wingily Financial Analyzer</p>
+                <p>Report ID: {analysis.id}</p>
+            </div>
+            
+            <div class="section">
+                <h2>Analysis Summary</h2>
+                <div class="meta-info">
+                    <div class="meta-row">
+                        <span class="meta-label">Document:</span>
+                        <span>{html.escape(analysis.original_filename or 'N/A')}</span>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">Analysis Date:</span>
+                        <span>{analysis.created_at.strftime('%Y-%m-%d %H:%M:%S UTC')}</span>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">Status:</span>
+                        <span style="color: {'green' if analysis.status == 'completed' else 'orange'};">
+                            {analysis.status.title()}
+                        </span>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">Query:</span>
+                        <span>{html.escape(analysis.query or 'General financial analysis')}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>Analysis Results</h2>
+                <div class="analysis-content">
+{result_content}
+                </div>
+            </div>
+            
+            <div class="footer">
+                <p>This report was generated automatically by the Wingily Financial Document Analyzer.</p>
+                <p>Generated on: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html_template
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)

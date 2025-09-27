@@ -49,7 +49,8 @@ const FileUpload: React.FC<FileUploadProps> = ({ onAnalysisComplete, className =
       const result = await documentAPI.uploadAndAnalyze(
         selectedFile,
         query,
-        keepFile
+        keepFile,
+        (progress) => setProgress(progress)
       );
 
       // Convert the upload response to the expected AnalysisResponse format

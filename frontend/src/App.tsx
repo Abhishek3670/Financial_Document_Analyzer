@@ -32,12 +32,12 @@ function App() {
     checkBackend();
   }, []);
 
-  const handleAnalysisComplete = (result: AnalysisResponse) => {
+  const handleAnalysisComplete = (result: any) => {
     setAnalysisResult(result);
     // Don't automatically switch to history, let user decide
   };
 
-  const handleViewAnalysis = (analysis: AnalysisHistoryItem) => {
+  const handleViewAnalysis = (analysis: any) => {
     setSelectedAnalysis(analysis);
     // Convert to AnalysisResponse format for display
     if (analysis.status === 'completed') {
