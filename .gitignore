@@ -29,3 +29,18 @@ API_ENDPOINTS_COMPLETE_LIST.md
 POST_REQUESTS_EXAMPLES.md
 README_VERIFICATION_REPORT.md
 test_post_endpoints.sh
+financial_analyzer.db-shm
+financial_analyzer.db-wal
+# Database files (runtime data)
+*.db-shm
+*.db-wal
+
+# Backup files
+*.backup
+main.py.before_*
+*.backup.*
+
+# Test outputs
+analysis_result.json
+analysis_from_db.json
+
