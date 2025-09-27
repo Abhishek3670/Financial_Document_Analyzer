@@ -17,11 +17,11 @@ from database import get_database_manager
 logger = logging.getLogger(__name__)
 
 class UserService:
-    """Service for user operations"""
+    """Enhanced UserService with authentication support"""
     
     @staticmethod
     def create_user(session: Session, ip_address: str = None, user_agent: str = None) -> User:
-        """Create a new user session"""
+        """Create a new user session (backward compatibility)"""
         try:
             user = User(ip_address=ip_address, user_agent=user_agent)
             session.add(user)
@@ -43,12 +43,22 @@ class UserService:
         return session.query(User).filter(User.session_id == session_id).first()
     
     @staticmethod
+    def get_user_by_email(session: Session, email: str) -> Optional[User]:
+        """Get user by email"""
+        return session.query(User).filter(User.email == email).first()
+    
+    @staticmethod
+    def get_user_by_username(session: Session, username: str) -> Optional[User]:
+        """Get user by username"""
+        return session.query(User).filter(User.username == username).first()
+    
+    @staticmethod
     def update_user_activity(session: Session, user_id: str) -> bool:
         """Update user's last activity timestamp"""
         try:
             user = session.query(User).filter(User.id == user_id).first()
             if user:
-                user.last_activity = datetime.utcnow()
+                user.last_activity = datetime.now()
                 session.flush()
                 return True
             return False
@@ -57,24 +67,134 @@ class UserService:
             return False
     
     @staticmethod
+    def update_user_login_time(session: Session, user: User) -> bool:
+        """Update user's last login time"""
+        try:
+            user.last_login = datetime.now()
+            user.last_activity = datetime.now()
+            session.flush()
+            return True
+        except Exception as e:
+            logger.error(f"Error updating user login time: {e}")
+            return False
+    
+    @staticmethod
+    def deactivate_user(session: Session, user_id: str) -> bool:
+        """Deactivate a user account"""
+        try:
+            user = session.query(User).filter(User.id == user_id).first()
+            if user:
+                user.is_active = False
+                session.flush()
+                logger.info(f"User deactivated: {user.email or user.id}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error deactivating user: {e}")
+            return False
+    
+    @staticmethod
+    def reactivate_user(session: Session, user_id: str) -> bool:
+        """Reactivate a user account"""
+        try:
+            user = session.query(User).filter(User.id == user_id).first()
+            if user:
+                user.is_active = True
+                session.flush()
+                logger.info(f"User reactivated: {user.email or user.id}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error reactivating user: {e}")
+            return False
+    
+    @staticmethod
+    def verify_user_email(session: Session, user_id: str) -> bool:
+        """Mark user's email as verified"""
+        try:
+            user = session.query(User).filter(User.id == user_id).first()
+            if user:
+                user.is_verified = True
+                session.flush()
+                logger.info(f"User email verified: {user.email}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error verifying user email: {e}")
+            return False
+    
+    @staticmethod
+    def get_authenticated_users(session: Session, limit: int = None) -> List[User]:
+        """Get all authenticated users (users with email and password)"""
+        query = session.query(User).filter(
+            User.email.isnot(None),
+            User.password_hash.isnot(None)
+        ).order_by(User.created_at.desc())
+        
+        if limit:
+            query = query.limit(limit)
+            
+        return query.all()
+    
+    @staticmethod
+    def get_session_users(session: Session, limit: int = None) -> List[User]:
+        """Get all session-only users (users without email/password)"""
+        query = session.query(User).filter(
+            User.email.is_(None),
+            User.password_hash.is_(None)
+        ).order_by(User.created_at.desc())
+        
+        if limit:
+            query = query.limit(limit)
+            
+        return query.all()
+    
+    @staticmethod
     def cleanup_inactive_users(session: Session, days: int = 30) -> int:
         """Clean up users inactive for specified days"""
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = datetime.now() - timedelta(days=days)
+            
+            # Only cleanup session users (not authenticated users)
             inactive_users = session.query(User).filter(
-                User.last_activity < cutoff_date
+                User.last_activity < cutoff_date,
+                User.email.is_(None),  # Only session users
+                User.password_hash.is_(None)
             ).all()
             
             count = len(inactive_users)
             for user in inactive_users:
-                session.delete(user)  # Cascade will handle related records
+                # Delete related documents and analyses through cascade
+                session.delete(user)
             
-            session.flush()
-            logger.info(f"Cleaned up {count} inactive users older than {days} days")
+            logger.info(f"Cleaned up {count} inactive session users")
             return count
         except Exception as e:
             logger.error(f"Error cleaning up inactive users: {e}")
             return 0
+    
+    @staticmethod
+    def get_user_stats(session: Session) -> dict:
+        """Get user statistics"""
+        try:
+            total_users = session.query(User).count()
+            authenticated_users = session.query(User).filter(
+                User.email.isnot(None)
+            ).count()
+            session_users = total_users - authenticated_users
+            active_users = session.query(User).filter(User.is_active == True).count()
+            verified_users = session.query(User).filter(User.is_verified == True).count()
+            
+            return {
+                "total_users": total_users,
+                "authenticated_users": authenticated_users,
+                "session_users": session_users,
+                "active_users": active_users,
+                "verified_users": verified_users
+            }
+        except Exception as e:
+            logger.error(f"Error getting user stats: {e}")
+            return {}
 
 class DocumentService:
     """Service for document operations"""

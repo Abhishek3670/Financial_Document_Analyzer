@@ -17,3 +17,15 @@ prompt.txt
 PRIORITY2_SUMMARY.md
 test_database.py
 *.backup
+AUTH_IMPLEMENTATION_SUMMARY.md
+USER_AUTH_IMPLEMENTATION_STATUS.md
+financial_analyzer.db.backup_before_auth_migration
+main.py.backup.auth
+test1.txt
+test_auth.py
+test_auth_clean.py
+PROJECT_STATUS_OVERVIEW.md
+API_ENDPOINTS_COMPLETE_LIST.md
+POST_REQUESTS_EXAMPLES.md
+README_VERIFICATION_REPORT.md
+test_post_endpoints.sh

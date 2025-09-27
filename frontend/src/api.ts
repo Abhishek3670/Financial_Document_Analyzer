@@ -299,3 +299,148 @@ export const getStatusColor = (status: string): string => {
 };
 
 export default api;
+
+// Authentication API
+export const authAPI = {
+  register: async (userData: {
+    email: string;
+    username: string;
+    password: string;
+    first_name: string;
+    last_name: string;
+  }) => {
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw { response: { data: error } };
+    }
+
+    return response.json();
+  },
+
+  login: async (credentials: { email: string; password: string }) => {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(credentials),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw { response: { data: error } };
+    }
+
+    return response.json();
+  },
+
+  getProfile: async (token: string) => {
+    const response = await fetch(`${API_BASE_URL}/auth/me`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw { response: { data: error } };
+    }
+
+    return response.json();
+  },
+
+  logout: async (token: string) => {
+    const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    return response.ok;
+  },
+
+  changePassword: async (token: string, data: {
+    current_password: string;
+    new_password: string;
+  }) => {
+    const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw { response: { data: error } };
+    }
+
+    return response.json();
+  },
+
+  updateProfile: async (token: string, data: {
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+  }) => {
+    const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw { response: { data: error } };
+    }
+
+    return response.json();
+  }
+};
+
+// Update existing API functions to include auth header when token is available
+const getAuthHeader = () => {
+  const token = localStorage.getItem('auth_token');
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+};
+
+// You can now update your existing API calls to include authentication
+// For example, modify the analyzeDocument function to include auth headers:
+/*
+export const analyzeDocument = async (file: File, query: string) => {
+  const formData = new FormData();
+  formData.append('document', file);
+  formData.append('query', query);
+
+  const response = await fetch(`${API_BASE_URL}/analyze`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeader(), // Include auth header
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error('Analysis failed');
+  }
+
+  return response.json();
+};
+*/

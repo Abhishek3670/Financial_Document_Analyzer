@@ -1,3 +1,4 @@
+# Authentication imports
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, status, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -18,8 +19,20 @@ from task import comprehensive_financial_analysis
 from database import init_database, get_db_session, get_database_manager
 from services import UserService, DocumentService, AnalysisService, AnalysisHistoryService
 from models import (
+    User,
     AnalysisResponse, DocumentResponse, AnalysisHistoryResponse,
-    CreateAnalysisRequest, AnalysisStatusResponse
+    CreateAnalysisRequest, AnalysisStatusResponse,
+    # Authentication models
+    UserRegisterRequest, UserLoginRequest, UserResponse, TokenResponse,
+    PasswordChangeRequest, PasswordResetRequest, PasswordResetConfirm,
+    UserProfileUpdate
+)
+
+# Authentication imports
+from auth import auth_service
+from auth_middleware import (
+    get_current_user, get_current_active_user, get_current_verified_user,
+    get_optional_user, get_user_or_session
 )
 
 # Setup logging
@@ -141,6 +154,248 @@ async def health_check():
         "database_info": get_database_manager().get_database_info()
     }
 
+
+# =============================================================================
+# AUTHENTICATION ROUTES
+# =============================================================================
+
+@app.post("/auth/register", response_model=TokenResponse)
+async def register_user(
+    user_data: UserRegisterRequest,
+    session: Session = Depends(get_db_session)
+):
+    """Register a new user"""
+    try:
+        user, error = auth_service.register_user(session, user_data)
+        if error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error
+            )
+        
+        session.commit()
+        
+        # Create access token for the new user
+        token_response = auth_service.create_access_token(user)
+        
+        logger.info(f"User registered successfully: {user.email}")
+        return token_response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Registration error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Registration failed"
+        )
+
+@app.post("/auth/login", response_model=TokenResponse)
+async def login_user(
+    login_data: UserLoginRequest,
+    session: Session = Depends(get_db_session)
+):
+    """Authenticate user and return access token"""
+    try:
+        user, error = auth_service.authenticate_user(
+            session, login_data.email, login_data.password
+        )
+        
+        if error:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=error
+            )
+        
+        # Create access token
+        token_response = auth_service.create_access_token(user)
+        
+        logger.info(f"User logged in successfully: {user.email}")
+        return token_response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Login failed"
+        )
+
+@app.post("/auth/logout")
+async def logout_user(current_user: UserResponse = Depends(get_current_user)):
+    """Logout user (client should discard token)"""
+    try:
+        logger.info(f"User logged out: {current_user.email}")
+        return {"message": "Successfully logged out"}
+        
+    except Exception as e:
+        logger.error(f"Logout error: {e}")
+        return {"message": "Logged out"}
+
+@app.get("/auth/me", response_model=UserResponse)
+async def get_current_user_profile(current_user: UserResponse = Depends(get_current_user)):
+    """Get current user profile"""
+    return current_user
+
+@app.put("/auth/profile", response_model=UserResponse)
+async def update_user_profile(
+    profile_update: UserProfileUpdate,
+    current_user: UserResponse = Depends(get_current_user),
+    session: Session = Depends(get_db_session)
+):
+    """Update user profile"""
+    try:
+        # Get the actual user object from database
+        user = session.query(User).filter(User.id == current_user.id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Update profile fields
+        if profile_update.first_name is not None:
+            user.first_name = profile_update.first_name
+        if profile_update.last_name is not None:
+            user.last_name = profile_update.last_name
+        if profile_update.email is not None:
+            # Check if email is already taken
+            existing_user = session.query(User).filter(
+                User.email == profile_update.email,
+                User.id != user.id
+            ).first()
+            if existing_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already taken"
+                )
+            user.email = profile_update.email
+            user.is_verified = False  # Require re-verification
+        
+        session.commit()
+        
+        # Return updated user response
+        updated_user = UserResponse(
+            id=user.id,
+            email=user.email,
+            username=user.username,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            full_name=user.full_name,
+            is_active=user.is_active,
+            is_verified=user.is_verified,
+            created_at=user.created_at,
+            last_activity=user.last_activity,
+            last_login=user.last_login
+        )
+        
+        logger.info(f"Profile updated for user: {user.email}")
+        return updated_user
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Profile update error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update profile"
+        )
+
+@app.post("/auth/change-password")
+async def change_password(
+    password_change: PasswordChangeRequest,
+    current_user: UserResponse = Depends(get_current_user),
+    session: Session = Depends(get_db_session)
+):
+    """Change user password"""
+    try:
+        # Get the actual user object from database
+        user = session.query(User).filter(User.id == current_user.id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        success, error = auth_service.change_password(session, user, password_change)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error
+            )
+        
+        logger.info(f"Password changed for user: {user.email}")
+        return {"message": "Password changed successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Password change error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to change password"
+        )
+
+@app.post("/auth/forgot-password")
+async def forgot_password(
+    reset_request: PasswordResetRequest,
+    session: Session = Depends(get_db_session)
+):
+    """Request password reset"""
+    try:
+        success, token = auth_service.generate_password_reset_token(
+            session, reset_request.email
+        )
+        
+        if not success:
+            # Return success even if email not found for security
+            return {"message": "If the email exists, a reset link has been sent"}
+        
+        # In a real application, you would send an email here
+        # For now, we'll log the token (in production, this should be sent via email)
+        logger.info(f"Password reset token generated: {token}")
+        
+        return {
+            "message": "If the email exists, a reset link has been sent",
+            "token": token  # Remove this in production!
+        }
+        
+    except Exception as e:
+        logger.error(f"Password reset request error: {e}")
+        return {"message": "If the email exists, a reset link has been sent"}
+
+@app.post("/auth/reset-password")
+async def reset_password(
+    reset_confirm: PasswordResetConfirm,
+    session: Session = Depends(get_db_session)
+):
+    """Reset password using token"""
+    try:
+        success, error = auth_service.reset_password(
+            session, reset_confirm.token, reset_confirm.new_password
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error
+            )
+        
+        return {"message": "Password reset successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Password reset error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to reset password"
+        )
+
+# =============================================================================
+# END AUTHENTICATION ROUTES
+# =============================================================================
 @app.post("/analyze", response_model=dict)
 async def analyze_document_endpoint(
     request: Request,
