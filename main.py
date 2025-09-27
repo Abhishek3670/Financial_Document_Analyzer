@@ -118,14 +118,152 @@ def run_crew(query: str, file_path: str) -> str:
         )
 
         result = financial_crew.kickoff({'query': query, 'file_path': file_path})
-        return str(result)
+        
+        # Log the raw result for debugging
+        logger.info(f"CrewAI raw result type: {type(result)}")
+        logger.info(f"CrewAI raw result length: {len(str(result)) if result else 0}")
+        logger.info(f"CrewAI raw result preview (first 200 chars): {str(result)[:200] if result else 'None'}")
+        
+        # Ensure we have a proper string result
+        if result is None:
+            result = "No analysis result was generated. Please try again."
+        elif hasattr(result, 'raw'):
+            # If result has a raw attribute, use that
+            result = str(result.raw)
+        else:
+            result = str(result)
+            
+        # Check if the result is too short or appears to be incomplete
+        if len(result.strip()) < 50:
+            logger.warning(f"CrewAI result appears incomplete: '{result}'")
+            
+            # Try to extract PDF content and provide a basic analysis
+            try:
+                from tools import financial_document_tool
+                pdf_content = financial_document_tool._run(file_path)
+                
+                # Provide a fallback analysis
+                fallback_analysis = generate_fallback_analysis(pdf_content[:2000], query)  # First 2000 chars
+                logger.info("Generated fallback analysis due to CrewAI incomplete result")
+                return fallback_analysis
+                
+            except Exception as fallback_error:
+                logger.error(f"Fallback analysis also failed: {fallback_error}")
+                return f"""# Analysis Result - Technical Issue
+
+**Query:** {query}
+
+**Status:** We encountered a technical issue while processing your financial document. 
+
+**Issue Details:**
+- The AI analysis system returned an incomplete result
+- Fallback analysis generation also encountered an error
+- This may be due to document complexity or temporary service issues
+
+**Recommendation:**
+1. Please try uploading the document again
+2. Ensure the PDF is not corrupted and contains readable text
+3. Try with a simpler analysis query if the issue persists
+
+**Technical Details:**
+- Original result length: {len(result.strip())} characters
+- Original result: "{result.strip()}"
+- File processed: {file_path}
+
+We apologize for the inconvenience. Please contact support if this issue continues."""
+
+        return result
         
     except Exception as e:
         logger.error(f"Error running crew: {e}")
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Analysis processing error: {str(e)}"
-        )
+        # Generate a fallback analysis in case of complete failure
+        try:
+            from tools import financial_document_tool
+            pdf_content = financial_document_tool._run(file_path)
+            fallback_analysis = generate_fallback_analysis(pdf_content[:2000], query)
+            logger.info("Generated fallback analysis due to CrewAI exception")
+            return fallback_analysis
+        except Exception as fallback_error:
+            logger.error(f"Fallback analysis failed: {fallback_error}")
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Analysis processing error: {str(e)}"
+            )
+
+def generate_fallback_analysis(pdf_content: str, query: str) -> str:
+    """Generate a basic fallback analysis when CrewAI fails"""
+    import re
+    
+    # Extract basic information
+    content_lower = pdf_content.lower()
+    
+    # Try to identify company name
+    company_name = "Unknown Company"
+    for line in pdf_content.split('\n')[:10]:  # Check first 10 lines
+        if len(line.strip()) > 3 and len(line.strip()) < 50:
+            if any(word in line.lower() for word in ['inc', 'corp', 'company', 'ltd']):
+                company_name = line.strip()
+                break
+    
+    # Look for financial indicators
+    revenue_mentions = len(re.findall(r'\$[\d,.]+ [mb]illion|\$[\d,.]+[mb]|\$[\d,]+', content_lower))
+    has_revenue = 'revenue' in content_lower or 'sales' in content_lower
+    has_profit = 'profit' in content_lower or 'income' in content_lower or 'earnings' in content_lower
+    has_cash = 'cash' in content_lower
+    has_debt = 'debt' in content_lower
+    
+    # Extract document type
+    doc_type = "Financial Report"
+    if 'quarterly' in content_lower or 'q1' in content_lower or 'q2' in content_lower or 'q3' in content_lower or 'q4' in content_lower:
+        doc_type = "Quarterly Report"
+    elif 'annual' in content_lower:
+        doc_type = "Annual Report"
+    elif '10-k' in content_lower:
+        doc_type = "Annual Report (10-K)"
+    elif '10-q' in content_lower:
+        doc_type = "Quarterly Report (10-Q)"
+    
+    # Generate the analysis
+    analysis = f"""# Financial Document Analysis - Basic Report
+
+**⚠️ Note:** This is a basic analysis generated due to technical limitations with our AI system. For detailed insights, please try analyzing the document again.
+
+## Document Overview
+- **Company:** {company_name}
+- **Document Type:** {doc_type}
+- **Analysis Query:** {query}
+
+## Content Summary
+- **Document Length:** {len(pdf_content):,} characters
+- **Financial Data Present:** {'Yes' if revenue_mentions > 0 else 'Limited'}
+- **Key Sections Detected:**
+  - Revenue/Sales Information: {'✓' if has_revenue else '✗'}
+  - Profit/Earnings Data: {'✓' if has_profit else '✗'}
+  - Cash Flow Information: {'✓' if has_cash else '✗'}
+  - Debt Information: {'✓' if has_debt else '✗'}
+
+## Basic Analysis
+Based on the document content:
+
+1. **Document Quality:** The PDF was successfully processed and contains {len(pdf_content):,} characters of text.
+
+2. **Financial Content:** {"Multiple financial figures and metrics were found in the document." if revenue_mentions > 2 else "Some financial information appears to be present." if revenue_mentions > 0 else "Limited financial metrics detected in the initial scan."}
+
+3. **Recommendation:** For a comprehensive analysis of this {doc_type.lower()}, please:
+   - Try re-uploading the document
+   - Ensure your query is specific (e.g., "Focus on revenue growth" or "Analyze profitability metrics")
+   - Contact support if technical issues persist
+
+## Document Preview (First 500 characters)
+```
+{pdf_content[:500]}...
+```
+
+---
+*This basic analysis was generated automatically when our advanced AI system encountered technical difficulties. Please try again for detailed insights.*"""
+
+    return analysis
+
 
 @app.get("/")
 async def root():
@@ -516,8 +654,10 @@ async def analyze_document_endpoint(
         # Process the financial document
         analysis_result = run_crew(query=query, file_path=file_path)
         
-        # Complete the analysis
-        AnalysisService.complete_analysis(
+        # Complete the analysis - with better error handling
+        logger.info(f"Saving analysis result of length: {len(analysis_result)}")
+        logger.info("Calling AnalysisService.complete_analysis")
+        completion_success = AnalysisService.complete_analysis(
             session=session,
             analysis_id=analysis_id,
             result=analysis_result,
@@ -538,6 +678,10 @@ async def analyze_document_endpoint(
             details="Analysis completed successfully"
         )
         session.commit()
+        
+        if not completion_success:
+            logger.error(f"Failed to complete analysis {analysis_id}")
+            raise HTTPException(status_code=500, detail="Failed to save analysis results")
         
         logger.info(f"Analysis {analysis_id} completed successfully")
         

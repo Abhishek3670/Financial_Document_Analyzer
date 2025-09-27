@@ -46,11 +46,11 @@ function App() {
         user_id: analysis.user_id,
         file_info: {
           filename: analysis.document?.original_filename || 'Unknown',
-          size_mb: analysis.document ? analysis.document.file_size / 1024 / 1024 : 0,
+          size_mb: analysis.document ? Math.round((analysis.document.file_size / 1024 / 1024) * 100) / 100 : 0,
           processed_at: analysis.completed_at || analysis.started_at
         },
         query: analysis.query,
-        analysis: analysis.result,
+        analysis: analysis.result, // This is the key fix - use result field from database
         metadata: {
           processing_id: analysis.id,
           file_type: analysis.document?.file_type || 'PDF',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Download, ArrowLeft, Clock, Database } from 'lucide-react';
+import { FileText, Download, ArrowLeft, Clock, Database, AlertCircle } from 'lucide-react';
 import { AnalysisResponse } from '../types';
 
 interface AnalysisResultsProps {
@@ -12,6 +12,51 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
   onNewAnalysis 
 }) => {
   const formatAnalysis = (analysis: string) => {
+    // Handle empty or null analysis
+    if (!analysis || analysis.trim() === '') {
+      return (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+          <div className="flex">
+            <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 mr-3 flex-shrink-0" />
+            <div>
+              <h4 className="text-yellow-800 font-medium">Analysis Incomplete</h4>
+              <p className="text-yellow-700 text-sm mt-1">
+                The analysis result is empty or incomplete. This may be due to a processing error.
+                Please try analyzing the document again.
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Handle very short or corrupted analysis
+    if (analysis.trim().length < 50) {
+      return (
+        <div className="space-y-4">
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded">
+            <div className="flex">
+              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 mr-3 flex-shrink-0" />
+              <div>
+                <h4 className="text-red-800 font-medium">Analysis Data Issue</h4>
+                <p className="text-red-700 text-sm mt-1">
+                  The analysis appears to be incomplete or corrupted. Please try re-analyzing the document.
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Still show whatever data we have */}
+          <div className="bg-gray-50 p-4 rounded border">
+            <h4 className="font-medium text-gray-800 mb-2">Raw Analysis Output:</h4>
+            <pre className="text-sm text-gray-600 whitespace-pre-wrap font-mono bg-white p-3 rounded border">
+              {analysis}
+            </pre>
+          </div>
+        </div>
+      );
+    }
+
     // Split by double newlines to create paragraphs
     const paragraphs = analysis.split('\n\n').filter(p => p.trim());
     
@@ -33,6 +78,32 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
         );
       }
       
+      // Check for markdown headers
+      if (paragraph.startsWith('#')) {
+        const headerLevel = paragraph.match(/^#+/)?.[0].length || 1;
+        const text = paragraph.replace(/^#+\s*/, '');
+        
+        if (headerLevel === 1) {
+          return (
+            <h2 key={index} className="text-2xl font-bold text-gray-900 mt-8 mb-4">
+              {text}
+            </h2>
+          );
+        } else if (headerLevel === 2) {
+          return (
+            <h3 key={index} className="text-xl font-bold text-gray-900 mt-6 mb-3">
+              {text}
+            </h3>
+          );
+        } else {
+          return (
+            <h4 key={index} className="text-lg font-semibold text-gray-800 mt-4 mb-2">
+              {text}
+            </h4>
+          );
+        }
+      }
+      
       // Check for bullet points
       if (paragraph.includes('- ')) {
         const items = paragraph.split('- ').filter(item => item.trim());
@@ -44,6 +115,20 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
               </li>
             ))}
           </ul>
+        );
+      }
+      
+      // Check for numbered lists
+      if (/^\d+\./.test(paragraph.trim())) {
+        const items = paragraph.split(/\d+\./).filter(item => item.trim());
+        return (
+          <ol key={index} className="list-decimal list-inside space-y-1 mb-4">
+            {items.map((item, itemIndex) => (
+              <li key={itemIndex} className="text-gray-700">
+                {item.trim()}
+              </li>
+            ))}
+          </ol>
         );
       }
       
@@ -82,16 +167,16 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
             <FileText className="w-12 h-12 text-blue-600" />
             <div>
               <h2 className="text-xl font-bold text-gray-900 mb-1">
-                {result.file_info.filename}
+                {result.file_info?.filename || 'Unknown Document'}
               </h2>
               <div className="flex items-center space-x-4 text-sm text-gray-600">
                 <div className="flex items-center space-x-1">
                   <Database className="w-4 h-4" />
-                  <span>{result.file_info.size_mb} MB</span>
+                  <span>{result.file_info?.size_mb || 0} MB</span>
                 </div>
                 <div className="flex items-center space-x-1">
                   <Clock className="w-4 h-4" />
-                  <span>{result.metadata.file_type}</span>
+                  <span>{result.metadata?.file_type || 'PDF'}</span>
                 </div>
               </div>
             </div>
@@ -107,7 +192,7 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
         <div className="mt-4 pt-4 border-t border-gray-200">
           <h4 className="text-sm font-medium text-gray-900 mb-2">Analysis Query:</h4>
           <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">
-            {result.query}
+            {result.query || 'No query provided'}
           </p>
         </div>
       </div>
@@ -120,7 +205,7 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
         </div>
         
         <div className="prose prose-lg max-w-none">
-          {formatAnalysis(result.analysis)}
+          {formatAnalysis(result.analysis || '')}
         </div>
         
         {/* Metadata */}
@@ -128,15 +213,20 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div>
               <span className="font-medium text-gray-900">Processing ID:</span>
-              <p className="text-gray-600 font-mono">{result.metadata.processing_id}</p>
+              <p className="text-gray-600 font-mono">{result.metadata?.processing_id || result.analysis_id}</p>
             </div>
             <div>
               <span className="font-medium text-gray-900">File Type:</span>
-              <p className="text-gray-600">{result.metadata.file_type}</p>
+              <p className="text-gray-600">{result.metadata?.file_type || 'PDF'}</p>
             </div>
             <div>
-              <span className="font-medium text-gray-900">Status:</span>
-              <p className="text-gray-600">{result.metadata.analysis_timestamp}</p>
+              <span className="font-medium text-gray-900">Processed:</span>
+              <p className="text-gray-600">
+                {result.metadata?.analysis_timestamp ? 
+                  new Date(result.metadata.analysis_timestamp).toLocaleString() : 
+                  'Unknown'
+                }
+              </p>
             </div>
           </div>
         </div>
