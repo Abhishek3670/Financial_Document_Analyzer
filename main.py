@@ -27,6 +27,7 @@ from database import init_database, get_db_session, get_database_manager
 from services import UserService, DocumentService, AnalysisService, AnalysisHistoryService
 from models import (
     User,
+    Document,
     AnalysisResponse, DocumentResponse, AnalysisHistoryResponse,
     CreateAnalysisRequest, AnalysisStatusResponse,
     # Authentication models
@@ -41,6 +42,9 @@ from auth_middleware import (
     get_current_user, get_current_active_user, get_current_verified_user,
     get_optional_user, get_user_or_session
 )
+
+# Import Redis cache
+from redis_cache import cache_result, cache_llm_result, cache_analysis_result
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -136,6 +140,7 @@ def validate_file(file: UploadFile) -> tuple[bool, str]:
         logger.error(f"Error validating file: {e}")
         return False, f"File validation error: {str(e)}"
 
+@cache_analysis_result(ttl=14400)  # Cache for 4 hours
 def run_crew(query: str, file_path: str) -> str:
     """Run the CrewAI crew for financial analysis"""
     try:
@@ -219,6 +224,7 @@ We apologize for the inconvenience. Please contact support if this issue continu
                 detail=f"Analysis processing error: {str(e)}"
             )
 
+@cache_analysis_result(ttl=14400)  # Cache for 4 hours
 def generate_fallback_analysis(pdf_content: str, query: str) -> str:
     """Generate a basic fallback analysis when CrewAI fails"""
     import re
@@ -293,7 +299,7 @@ Based on the document content:
 
     return analysis
 
-
+@cache_analysis_result(ttl=14400)  # Cache for 4 hours
 def run_enhanced_multi_agent_crew(query: str, file_path: str) -> str:
     """Run the enhanced CrewAI crew with specialized agents for comprehensive financial analysis"""
     try:
@@ -976,18 +982,50 @@ async def get_analysis_history(
         # Convert to response format
         analysis_responses = []
         for analysis in analyses:
-            # Get document info
-            document = DocumentService.get_document_by_id(session, analysis.document_id)
-            document_info = DocumentResponse.from_orm(document) if document else None
-            
-            analysis_resp = AnalysisResponse.from_orm(analysis)
-            analysis_resp.document = document_info
-            analysis_responses.append(analysis_resp)
+            try:
+                # Get document info - make sure we're working with objects attached to the session
+                # If analysis was retrieved from cache, it might be detached, so we re-fetch it to ensure it's attached
+                if analysis not in session:
+                    # Re-fetch analysis to ensure it's attached to session
+                    analysis = session.query(Analysis).filter(Analysis.id == analysis.id).first()
+                
+                # Get document info - make sure document is also attached to session
+                document = DocumentService.get_document_by_id(session, analysis.document_id)
+                if not document or document not in session:
+                    # Re-fetch document to ensure it's attached to session
+                    document = session.query(Document).filter(Document.id == analysis.document_id).first()
+                
+                document_info = DocumentResponse.from_orm(document) if document else None
+                
+                # Create a dictionary representation instead of using from_orm to avoid issues
+                analysis_dict = {
+                    "id": analysis.id,
+                    "user_id": analysis.user_id,
+                    "document_id": analysis.document_id,
+                    "original_filename": document.original_filename if document else None,
+                    "query": analysis.query or "",
+                    "analysis_type": analysis.analysis_type or "comprehensive",
+                    "result": analysis.result or "",
+                    "summary": analysis.summary,
+                    "started_at": analysis.started_at.isoformat() if analysis.started_at else None,
+                    "completed_at": analysis.completed_at.isoformat() if analysis.completed_at else None,
+                    "processing_time_seconds": analysis.processing_time_seconds,
+                    "status": analysis.status,
+                    "confidence_score": analysis.confidence_score,
+                    "key_insights_count": analysis.key_insights_count,
+                    "document": document_info.dict() if document_info else None
+                }
+                
+                analysis_responses.append(analysis_dict)
+            except Exception as analysis_error:
+                logger.error(f"Error processing analysis {analysis.id}: {analysis_error}")
+                # Continue with other analyses even if one fails
+                continue
         
         has_more = (page * page_size) < total_count
         
         return {
-            "analyses": [resp.dict() for resp in analysis_responses],
+            "analyses": analysis_responses,
             "pagination": {
                 "page": page,
                 "page_size": page_size,
@@ -1017,8 +1055,20 @@ async def get_analysis_by_id(
         if not analysis:
             raise HTTPException(status_code=404, detail="Analysis not found")
         
-        # Get document info
+        # Get document info - we need to make sure we're working with objects attached to the session
+        # If analysis was retrieved from cache, it might be detached, so we re-fetch it to ensure it's attached
+        if analysis not in session:
+            # Re-fetch analysis to ensure it's attached to session
+            analysis = session.query(Analysis).filter(Analysis.id == analysis_id).first()
+            if not analysis:
+                raise HTTPException(status_code=404, detail="Analysis not found")
+        
+        # Get document info - make sure document is also attached to session
         document = DocumentService.get_document_by_id(session, analysis.document_id)
+        if not document or document not in session:
+            # Re-fetch document to ensure it's attached to session
+            document = session.query(Document).filter(Document.id == analysis.document_id).first()
+        
         document_info = DocumentResponse.from_orm(document) if document else None
         
         # Log the view action

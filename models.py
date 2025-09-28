@@ -197,6 +197,10 @@ class DocumentResponse(BaseModel):
     upload_timestamp: datetime
     is_processed: bool
     is_stored_permanently: bool
+    stored_filename: Optional[str] = None
+    file_path: Optional[str] = None
+    mime_type: Optional[str] = None
+    file_hash: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -205,14 +209,14 @@ class AnalysisResponse(BaseModel):
     id: str
     user_id: str
     document_id: str
-    query: str
-    analysis_type: str
-    result: str
+    query: Optional[str] = None
+    analysis_type: str = "comprehensive"
+    result: Optional[str] = None
     summary: Optional[str] = None
-    started_at: datetime
+    started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     processing_time_seconds: Optional[float] = None
-    status: str
+    status: str = "pending"
     confidence_score: Optional[float] = None
     key_insights_count: Optional[int] = None
     

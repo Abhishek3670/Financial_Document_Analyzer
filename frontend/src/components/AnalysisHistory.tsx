@@ -23,7 +23,18 @@ interface AnalysisHistoryProps {
 
 // Utility functions
 const formatRelativeTime = (dateString: string): string => {
+  // Handle null or undefined dateString
+  if (!dateString) {
+    return 'Unknown time';
+  }
+  
   const date = new Date(dateString);
+  
+  // Check if date is valid
+  if (isNaN(date.getTime())) {
+    return 'Invalid date';
+  }
+  
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffHours = diffMs / (1000 * 60 * 60);
@@ -40,9 +51,32 @@ const formatRelativeTime = (dateString: string): string => {
 };
 
 const formatProcessingTime = (startTime: string, endTime?: string): string => {
+  // Handle null or undefined values
+  if (!startTime) {
+    return 'Unknown duration';
+  }
+  
   const start = new Date(startTime);
+  
+  // Check if start date is valid
+  if (isNaN(start.getTime())) {
+    return 'Invalid start time';
+  }
+  
   const end = endTime ? new Date(endTime) : new Date();
+  
+  // Check if end date is valid
+  if (endTime && isNaN(end.getTime())) {
+    return 'Invalid end time';
+  }
+  
   const diffMs = end.getTime() - start.getTime();
+  
+  // Handle negative or invalid differences
+  if (diffMs < 0) {
+    return 'Invalid duration';
+  }
+  
   const diffSeconds = Math.floor(diffMs / 1000);
   
   if (diffSeconds < 60) {
