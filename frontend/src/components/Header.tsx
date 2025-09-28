@@ -5,7 +5,11 @@ import { EnhancedAuthModalWithReset } from './AuthEnhanced';
 import { ProfileManagementDashboard } from './AuthProfileManagement';
 import { useToast } from './Toast';
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  backendStatus?: 'checking' | 'online' | 'offline';
+}
+
+const Header: React.FC<HeaderProps> = ({ backendStatus = 'checking' }) => {
   const { user, logout, refreshUser } = useAuth();
   const { showToast } = useToast();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -43,6 +47,34 @@ const Header: React.FC = () => {
     } catch (error) {
       showToast('Error logging out', 'error');
     }
+  };
+
+  const renderBackendStatus = () => {
+    if (backendStatus === 'checking') {
+      return (
+        <div className="flex items-center text-yellow-700 bg-yellow-50 px-3 py-1 rounded-full text-sm">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mr-2"></div>
+          <span>Checking backend...</span>
+        </div>
+      );
+    }
+    
+    if (backendStatus === 'offline') {
+      return (
+        <div className="flex items-center text-red-700 bg-red-50 px-3 py-1 rounded-full text-sm">
+          <div className="w-4 h-4 bg-red-400 rounded-full mr-2"></div>
+          <span>Backend Offline</span>
+        </div>
+      );
+    }
+
+    // Online status
+    return (
+      <div className="flex items-center text-green-700 bg-green-50 px-3 py-1 rounded-full text-sm">
+        <div className="w-4 h-4 bg-green-400 rounded-full mr-2"></div>
+        <span>Backend Online</span>
+      </div>
+    );
   };
 
   const UserDropdown = () => (
@@ -106,8 +138,9 @@ const Header: React.FC = () => {
             </div>
             
             <div className="flex items-center space-x-4">
-              {/* Navigation links removed as they were not implemented */}
-
+              {/* Backend Status Indicator */}
+              {renderBackendStatus()}
+              
               {/* Authentication Section */}
               {user ? (
                 <UserDropdown />
@@ -122,8 +155,6 @@ const Header: React.FC = () => {
             </div>
           </div>
         </div>
-
-
       </header>
 
       {/* Authentication Modal */}

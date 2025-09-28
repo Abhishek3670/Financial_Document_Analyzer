@@ -53,3 +53,8 @@
     transform: translateY(0);
   }
 }
+
+/* Footer positioning */
+.footer {
+  margin-top: auto;
+}
