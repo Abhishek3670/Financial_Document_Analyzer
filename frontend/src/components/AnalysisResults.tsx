@@ -25,7 +25,31 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
       await documentAPI.downloadAnalysisReport(result.id, filename, 'html');
     } catch (error: any) {
       console.error('Failed to download report:', error);
-      const errorMessage = error?.response?.data?.detail || error?.message || 'Unknown error occurred';
+      
+      // Handle different types of errors
+      let errorMessage = 'Unknown error occurred';
+      
+      if (error?.response) {
+        // Server responded with error status
+        if (error.response.status === 401) {
+          errorMessage = 'Authentication required. Please log in and try again.';
+        } else if (error.response.status === 403) {
+          errorMessage = 'Access denied. You do not have permission to download this report.';
+        } else if (error.response.status === 404) {
+          errorMessage = 'Report not found. The analysis may have been deleted.';
+        } else if (error.response.status === 500) {
+          errorMessage = 'Server error. Please try again later.';
+        } else {
+          errorMessage = error.response.data?.detail || error.response.statusText || 'Server error';
+        }
+      } else if (error?.request) {
+        // Request was made but no response received
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else {
+        // Something else happened
+        errorMessage = error?.message || 'Failed to download report';
+      }
+      
       alert(`Failed to download report: ${errorMessage}. Please try again.`);
     } finally {
       setIsDownloading(false);

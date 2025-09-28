@@ -3,6 +3,16 @@ import axios, { AxiosResponse } from 'axios';
 // API Configuration
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
+// Generate or retrieve session ID
+const getSessionId = (): string => {
+  let sessionId = localStorage.getItem('session_id');
+  if (!sessionId) {
+    sessionId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    localStorage.setItem('session_id', sessionId);
+  }
+  return sessionId;
+};
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -11,12 +21,19 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Add auth token to requests
+// Add auth token and session ID to requests
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('auth_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  
+  // Add session ID to headers
+  const sessionId = getSessionId();
+  if (sessionId) {
+    config.headers['X-Session-ID'] = sessionId;
+  }
+  
   return config;
 });
 

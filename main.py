@@ -84,9 +84,31 @@ def get_client_info(request: Request) -> dict:
 
 def get_or_create_user(session: Session, request: Request) -> str:
     """Get or create user session"""
-    # In a real application, you might use session cookies or JWT tokens
-    # For now, we'll create a new user session for each request
-    # You can extend this to handle session persistence
+    # Try to get user from authenticated session first
+    try:
+        # Check for Authorization header (Bearer token)
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            user = auth_service.get_current_user(session, token)
+            if user:
+                return user.id
+    except Exception as e:
+        logger.debug(f"Failed to get user from auth token: {e}")
+    
+    # Try to get session_id from headers or cookies
+    session_id = request.headers.get("X-Session-ID") or request.cookies.get("session_id")
+    
+    if session_id:
+        # Try to find existing user with this session_id
+        user = UserService.get_user_by_session_id(session, session_id)
+        if user:
+            # Update last activity
+            user.last_activity = datetime.utcnow()
+            session.commit()
+            return user.id
+    
+    # Create new session user
     client_info = get_client_info(request)
     user = UserService.create_user(
         session=session,
