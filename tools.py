@@ -1,9 +1,15 @@
 import os
 import re
+import time
+import logging
+from functools import wraps
 from dotenv import load_dotenv
 from crewai_tools import SerperDevTool
 from crewai.tools import BaseTool
 from langchain_community.document_loaders import PyPDFLoader
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -13,13 +19,39 @@ from redis_cache import cache_result, cache_llm_result, cache_analysis_result
 
 # Creating search tool with Serper
 SERPER_API_KEY = os.getenv("SERPER_API_KEY")
+
+# Generic search tool (kept for backward compatibility)
 search_tool = SerperDevTool(api_key=SERPER_API_KEY)
+
+# Performance tracking for tools
+tool_performance_metrics = {}
+
+def track_tool_performance(tool_name):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            start_time = time.time()
+            try:
+                result = func(*args, **kwargs)
+                execution_time = time.time() - start_time
+                if tool_name not in tool_performance_metrics:
+                    tool_performance_metrics[tool_name] = []
+                tool_performance_metrics[tool_name].append(execution_time)
+                logger.info(f"Tool {tool_name} completed in {execution_time:.2f} seconds")
+                return result
+            except Exception as e:
+                execution_time = time.time() - start_time
+                logger.error(f"Tool {tool_name} failed after {execution_time:.2f} seconds: {e}")
+                raise
+        return wrapper
+    return decorator
 
 class FinancialDocumentReader(BaseTool):
     name: str = "Financial Document Reader"
     description: str = "Reads and processes financial documents from PDF files"
 
     @cache_analysis_result(ttl=3600)  # Cache for 1 hour
+    @track_tool_performance("FinancialDocumentReader")
     def _run(self, file_path: str) -> str:
         """Read and process a financial document from a PDF file.
         
@@ -69,6 +101,7 @@ class InvestmentAnalyzer(BaseTool):
     description: str = "Analyzes financial document data and provides investment insights"
 
     @cache_llm_result(model="investment-analysis", ttl=7200)  # Cache for 2 hours
+    @track_tool_performance("InvestmentAnalyzer")
     def _run(self, financial_document_data: str) -> str:
         """Analyze financial document data and provide investment insights.
         
@@ -134,6 +167,7 @@ class RiskAssessor(BaseTool):
     description: str = "Assesses risks based on financial document data"
 
     @cache_llm_result(model="risk-assessment", ttl=7200)  # Cache for 2 hours
+    @track_tool_performance("RiskAssessor")
     def _run(self, financial_document_data: str) -> str:
         """Assess risks based on financial document data.
         
@@ -206,7 +240,198 @@ class RiskAssessor(BaseTool):
         except Exception as e:
             return f"Error assessing risks: {str(e)}"
 
+class DocumentClassifier(BaseTool):
+    name: str = "Document Classifier"
+    description: str = "Classifies financial documents by type and identifies the industry sector"
+
+    @cache_result(ttl=3600)  # Cache for 1 hour
+    @track_tool_performance("DocumentClassifier")
+    def _run(self, document_text: str) -> dict:
+        """Classify a financial document by type and industry.
+        
+        Args:
+            document_text (str): Text content of the financial document
+            
+        Returns:
+            dict: Classification results including document type and industry
+        """
+        try:
+            if not document_text or len(document_text.strip()) == 0:
+                return {
+                    "document_type": "unknown",
+                    "industry": "general",
+                    "processing_speed": "standard",
+                    "confidence": 0.0
+                }
+            
+            # Convert to lowercase for easier matching
+            text_lower = document_text.lower()
+            
+            # Identify document type
+            document_type = "unknown"
+            processing_speed = "standard"
+            
+            # Check for annual reports (10-K, annual reports)
+            if any(term in text_lower for term in ['10-k', '10k', 'annual report', 'form 10-k']):
+                document_type = "annual_report"
+                processing_speed = "detailed"
+            # Check for quarterly reports (10-Q, quarterly reports)
+            elif any(term in text_lower for term in ['10-q', '10q', 'quarterly report', 'form 10-q']):
+                document_type = "quarterly_report"
+                processing_speed = "fast"
+            # Check for earnings reports
+            elif any(term in text_lower for term in ['earnings', 'results', 'quarterly earnings', 'financial results']):
+                document_type = "earnings_report"
+                processing_speed = "fast"
+            # Check for prospectus
+            elif any(term in text_lower for term in ['prospectus', 'registration statement']):
+                document_type = "prospectus"
+                processing_speed = "detailed"
+            # Check for other financial statements
+            elif any(term in text_lower for term in ['balance sheet', 'income statement', 'cash flow statement']):
+                document_type = "financial_statement"
+                processing_speed = "standard"
+            
+            # Identify industry sector
+            industry = "general"
+            industry_keywords = {
+                "technology": ["technology", "software", "tech", "computer", "internet", "digital", "ai", "artificial intelligence"],
+                "finance": ["bank", "financial", "insurance", "investment", "credit", "loan", "mortgage"],
+                "healthcare": ["pharmaceutical", "biotech", "medical", "healthcare", "hospital", "drug"],
+                "energy": ["energy", "oil", "gas", "petroleum", "renewable", "solar", "wind"],
+                "retail": ["retail", "store", "shopping", "consumer", "ecommerce", "e-commerce"],
+                "manufacturing": ["manufacturing", "factory", "production", "industrial", "equipment"],
+                "automotive": ["automotive", "car", "vehicle", "auto", "motor"],
+                "real_estate": ["real estate", "property", "housing", "reit", "realty"]
+            }
+            
+            # Find the industry with the most matching keywords
+            industry_scores = {}
+            for sector, keywords in industry_keywords.items():
+                score = sum(1 for keyword in keywords if keyword in text_lower)
+                if score > 0:
+                    industry_scores[sector] = score
+            
+            if industry_scores:
+                industry = max(industry_scores, key=industry_scores.get)
+            
+            # Calculate confidence based on keyword matches
+            total_keywords = sum(len(keywords) for keywords in industry_keywords.values())
+            confidence = sum(industry_scores.values()) / total_keywords if total_keywords > 0 else 0.0
+            confidence = min(confidence, 1.0)  # Cap at 1.0
+            
+            return {
+                "document_type": document_type,
+                "industry": industry,
+                "processing_speed": processing_speed,
+                "confidence": round(confidence, 2)
+            }
+            
+        except Exception as e:
+            logger.error(f"Document classification failed: {e}")
+            return {
+                "document_type": "unknown",
+                "industry": "general",
+                "processing_speed": "standard",
+                "confidence": 0.0,
+                "error": str(e)
+            }
+
+# Domain-specific search tools with caching to avoid redundant searches
+class FinancialSearchTool(BaseTool):
+    name: str = "Financial Search Tool"
+    description: str = "Searches for financial data, market trends, and economic indicators"
+
+    @cache_result(ttl=1800)  # Cache for 30 minutes
+    @track_tool_performance("FinancialSearchTool")
+    def _run(self, query: str) -> str:
+        """Search for financial-related information"""
+        try:
+            # Add financial context to the query
+            financial_query = f"financial {query}"
+            tool = SerperDevTool(api_key=SERPER_API_KEY)
+            result = tool._run(financial_query)
+            return result
+        except Exception as e:
+            logger.error(f"Financial search failed: {e}")
+            return f"Error performing financial search: {str(e)}"
+
+class InvestmentSearchTool(BaseTool):
+    name: str = "Investment Search Tool"
+    description: str = "Searches for investment opportunities, stock analysis, and portfolio strategies"
+
+    @cache_result(ttl=1800)  # Cache for 30 minutes
+    @track_tool_performance("InvestmentSearchTool")
+    def _run(self, query: str) -> str:
+        """Search for investment-related information"""
+        try:
+            # Add investment context to the query
+            investment_query = f"investment {query}"
+            tool = SerperDevTool(api_key=SERPER_API_KEY)
+            result = tool._run(investment_query)
+            return result
+        except Exception as e:
+            logger.error(f"Investment search failed: {e}")
+            return f"Error performing investment search: {str(e)}"
+
+class RiskSearchTool(BaseTool):
+    name: str = "Risk Search Tool"
+    description: str = "Searches for risk assessment data, regulatory information, and compliance guidelines"
+
+    @cache_result(ttl=1800)  # Cache for 30 minutes
+    @track_tool_performance("RiskSearchTool")
+    def _run(self, query: str) -> str:
+        """Search for risk-related information"""
+        try:
+            # Add risk context to the query
+            risk_query = f"risk {query}"
+            tool = SerperDevTool(api_key=SERPER_API_KEY)
+            result = tool._run(risk_query)
+            return result
+        except Exception as e:
+            logger.error(f"Risk search failed: {e}")
+            return f"Error performing risk search: {str(e)}"
+
+class IndustrySearchTool(BaseTool):
+    name: str = "Industry Search Tool"
+    description: str = "Searches for industry-specific trends, competitors, and market analysis"
+
+    @cache_result(ttl=1800)  # Cache for 30 minutes
+    @track_tool_performance("IndustrySearchTool")
+    def _run(self, query: str, industry: str = "") -> str:
+        """Search for industry-specific information"""
+        try:
+            # Add industry context to the query
+            industry_query = f"{industry} {query}" if industry else query
+            tool = SerperDevTool(api_key=SERPER_API_KEY)
+            result = tool._run(industry_query)
+            return result
+        except Exception as e:
+            logger.error(f"Industry search failed: {e}")
+            return f"Error performing industry search: {str(e)}"
+
 # Create tool instances
 financial_document_tool = FinancialDocumentReader()
 investment_analysis_tool = InvestmentAnalyzer()
 risk_assessment_tool = RiskAssessor()
+document_classifier_tool = DocumentClassifier()  # New document classifier tool
+
+# Create specialized search tool instances
+financial_search_tool = FinancialSearchTool()
+investment_search_tool = InvestmentSearchTool()
+risk_search_tool = RiskSearchTool()
+industry_search_tool = IndustrySearchTool()
+
+def get_tool_performance_summary():
+    """Get performance summary for all tools"""
+    summary = {}
+    for tool_name, times in tool_performance_metrics.items():
+        if times:
+            summary[tool_name] = {
+                "total_executions": len(times),
+                "average_time": sum(times) / len(times),
+                "min_time": min(times),
+                "max_time": max(times),
+                "total_time": sum(times)
+            }
+    return summary

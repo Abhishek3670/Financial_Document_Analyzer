@@ -4,11 +4,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import os
 import uuid
-import asyncio
+import time
 import logging
 from pathlib import Path
 import magic
 from datetime import datetime
+from typing import List, Optional, Dict, Any
+
+from crewai import Crew, Process
+
 from typing import List, Optional
 
 from crewai import Crew, Process
@@ -50,6 +54,31 @@ from redis_cache import cache_result, cache_llm_result, cache_analysis_result
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Agent performance tracking
+crew_performance_metrics = {}
+
+def track_crew_performance(crew_name, start_time):
+    """Track crew execution performance"""
+    execution_time = time.time() - start_time
+    if crew_name not in crew_performance_metrics:
+        crew_performance_metrics[crew_name] = []
+    crew_performance_metrics[crew_name].append(execution_time)
+    logger.info(f"Crew {crew_name} completed in {execution_time:.2f} seconds")
+
+def get_crew_performance_summary():
+    """Get performance summary for all crews"""
+    summary = {}
+    for crew_name, times in crew_performance_metrics.items():
+        if times:
+            summary[crew_name] = {
+                "total_executions": len(times),
+                "average_time": sum(times) / len(times),
+                "min_time": min(times),
+                "max_time": max(times),
+                "total_time": sum(times)
+            }
+    return summary
 
 # Initialize database on startup
 try:
@@ -148,6 +177,8 @@ def validate_file(file: UploadFile) -> tuple[bool, str]:
 @cache_analysis_result(ttl=14400)  # Cache for 4 hours
 def run_crew(query: str, file_path: str) -> str:
     """Run the CrewAI crew for financial analysis"""
+    start_time = time.time()
+    crew_name = "original_crew"
     try:
         financial_crew = Crew(
             agents=[financial_analyst, data_extractor, investment_analyst, risk_analyst],
@@ -157,6 +188,9 @@ def run_crew(query: str, file_path: str) -> str:
         )
 
         result = financial_crew.kickoff({'query': query, 'file_path': file_path})
+        
+        # Track performance
+        track_crew_performance(crew_name, start_time)
         
         # Log the raw result for debugging
         logger.info(f"CrewAI raw result type: {type(result)}")
@@ -214,6 +248,8 @@ We apologize for the inconvenience. Please contact support if this issue continu
         return result
         
     except Exception as e:
+        # Track performance even on error
+        track_crew_performance(crew_name, start_time)
         logger.error(f"Error running crew: {e}")
         # Generate a fallback analysis in case of complete failure
         try:
@@ -307,6 +343,8 @@ Based on the document content:
 @cache_analysis_result(ttl=14400)  # Cache for 4 hours
 def run_enhanced_multi_agent_crew(query: str, file_path: str) -> str:
     """Run the enhanced CrewAI crew with specialized agents for comprehensive financial analysis"""
+    start_time = time.time()
+    crew_name = "enhanced_crew"
     try:
         logger.info("Starting enhanced multi-agent financial analysis workflow")
         
@@ -326,11 +364,11 @@ def run_enhanced_multi_agent_crew(query: str, file_path: str) -> str:
                 risk_assessment_task,
                 report_synthesis_task
             ],
-            process=Process.sequential,
+            process=Process.hierarchical,
             verbose=True,
-            manager_llm=None,  # Use sequential process without manager
-            # Enable memory and planning for better coordination
-            memory=True
+            manager_llm=llm,
+            memory=True,
+            planning=True
         )
 
         # Execute the enhanced workflow
@@ -339,9 +377,16 @@ def run_enhanced_multi_agent_crew(query: str, file_path: str) -> str:
             "file_path": file_path
         })
         
+        # Track performance
+        track_crew_performance(crew_name, start_time)
+        
         logger.info(f"Enhanced CrewAI workflow completed. Result type: {type(result)}")
         logger.info(f"Enhanced CrewAI result length: {len(str(result)) if result else 0}")
         logger.info(f"Enhanced CrewAI result preview: {str(result)[:200] if result else 'None'}")
+        
+        # Log performance metrics
+        execution_time = time.time() - start_time
+        logger.info(f"PERFORMANCE METRICS - Enhanced Crew: {execution_time:.2f}s")
         
         # Process the result from the enhanced workflow
         if result is None:
@@ -361,23 +406,422 @@ def run_enhanced_multi_agent_crew(query: str, file_path: str) -> str:
         return result
         
     except Exception as e:
-        logger.error(f"Enhanced crew workflow error: {e}")
+        # Track performance even on error
+        track_crew_performance(crew_name, start_time)
+        execution_time = time.time() - start_time
+        logger.error(f"Enhanced crew workflow error after {execution_time:.2f} seconds: {e}")
         logger.info("Falling back to original crew configuration due to error")
         # Fall back to the original crew configuration
         return run_crew(query, file_path)
+
+@cache_analysis_result(ttl=14400)  # Cache for 4 hours
+def run_parallel_multi_agent_crew(query: str, file_path: str) -> str:
+    """Run an optimized parallel processing workflow with separate crews for different analysis tracks"""
+    start_time = time.time()
+    crew_name = "parallel_crew"
+    try:
+        logger.info("Starting parallel multi-agent financial analysis workflow")
+        
+        # First, run document verification (required for all other tasks)
+        verification_start = time.time()
+        verification_crew = Crew(
+            agents=[document_verifier],
+            tasks=[document_verification_task],
+            process=Process.sequential,
+            verbose=True,
+            memory=True
+        )
+        
+        # Execute document verification
+        verification_result = verification_crew.kickoff({
+            "query": query,
+            "file_path": file_path
+        })
+        verification_time = time.time() - verification_start
+        logger.info(f"Document verification completed in {verification_time:.2f} seconds")
+        
+        # Run financial analysis (required for investment and risk analysis)
+        financial_start = time.time()
+        financial_crew = Crew(
+            agents=[financial_analyst],
+            tasks=[financial_analysis_task],
+            process=Process.sequential,
+            verbose=True,
+            memory=True
+        )
+        
+        # Execute financial analysis
+        financial_result = financial_crew.kickoff({
+            "query": query,
+            "file_path": file_path
+        })
+        financial_time = time.time() - financial_start
+        logger.info(f"Financial analysis completed in {financial_time:.2f} seconds")
+        
+        # Run investment and risk analysis in parallel using ThreadPoolExecutor
+        import concurrent.futures
+        import threading
+        
+        def run_investment_analysis():
+            investment_start = time.time()
+            investment_crew = Crew(
+                agents=[investment_specialist],
+                tasks=[investment_analysis_task],
+                process=Process.sequential,
+                verbose=True,
+                memory=True
+            )
+            result = investment_crew.kickoff({
+                "query": query,
+                "file_path": file_path
+            })
+            investment_time = time.time() - investment_start
+            logger.info(f"Investment analysis completed in {investment_time:.2f} seconds")
+            return result, investment_time
+        
+        def run_risk_analysis():
+            risk_start = time.time()
+            risk_crew = Crew(
+                agents=[risk_assessor],
+                tasks=[risk_assessment_task],
+                process=Process.sequential,
+                verbose=True,
+                memory=True
+            )
+            result = risk_crew.kickoff({
+                "query": query,
+                "file_path": file_path
+            })
+            risk_time = time.time() - risk_start
+            logger.info(f"Risk analysis completed in {risk_time:.2f} seconds")
+            return result, risk_time
+        
+        # Execute investment and risk analysis in parallel
+        parallel_start = time.time()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            investment_future = executor.submit(run_investment_analysis)
+            risk_future = executor.submit(run_risk_analysis)
+            
+            investment_result, investment_time = investment_future.result(timeout=300)  # 5 minute timeout
+            risk_result, risk_time = risk_future.result(timeout=300)  # 5 minute timeout
+        parallel_time = time.time() - parallel_start
+        logger.info(f"Parallel analyses completed in {parallel_time:.2f} seconds")
+        
+        # Finally, run report synthesis with all results
+        synthesis_start = time.time()
+        synthesis_crew = Crew(
+            agents=[report_coordinator],
+            tasks=[report_synthesis_task],
+            process=Process.sequential,
+            verbose=True,
+            memory=True
+        )
+        
+        # Execute report synthesis
+        final_result = synthesis_crew.kickoff({
+            "query": query,
+            "file_path": file_path
+        })
+        synthesis_time = time.time() - synthesis_start
+        logger.info(f"Report synthesis completed in {synthesis_time:.2f} seconds")
+        
+        execution_time = time.time() - start_time
+        logger.info(f"Parallel multi-agent workflow completed in {execution_time:.2f} seconds")
+        
+        # Track performance
+        track_crew_performance(crew_name, start_time)
+        
+        # Log detailed performance metrics
+        logger.info(f"PERFORMANCE METRICS - Parallel Crew:")
+        logger.info(f"  Total Execution Time: {execution_time:.2f}s")
+        logger.info(f"  Document Verification: {verification_time:.2f}s")
+        logger.info(f"  Financial Analysis: {financial_time:.2f}s")
+        logger.info(f"  Investment Analysis: {investment_time:.2f}s")
+        logger.info(f"  Risk Analysis: {risk_time:.2f}s")
+        logger.info(f"  Parallel Analyses: {parallel_time:.2f}s")
+        logger.info(f"  Report Synthesis: {synthesis_time:.2f}s")
+        
+        return final_result
+        
+    except Exception as e:
+        # Track performance even on error
+        track_crew_performance(crew_name, start_time)
+        execution_time = time.time() - start_time
+        logger.error(f"Parallel crew workflow error after {execution_time:.2f} seconds: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Analysis processing error: {str(e)}"
+        )
+
+@cache_analysis_result(ttl=14400)  # Cache for 4 hours
+def run_dynamic_multi_agent_crew(query: str, file_path: str) -> str:
+    """Run a dynamic multi-agent crew with agent selection based on document type and industry"""
+    start_time = time.time()
+    crew_name = "dynamic_crew"
+    try:
+        logger.info("Starting dynamic multi-agent financial analysis workflow")
+        
+        # First, run document verification (required for all other tasks)
+        verification_start = time.time()
+        verification_crew = Crew(
+            agents=[document_verifier],
+            tasks=[document_verification_task],
+            process=Process.sequential,
+            verbose=True,
+            memory=True
+        )
+        
+        # Execute document verification
+        verification_result = verification_crew.kickoff({
+            "query": query,
+            "file_path": file_path
+        })
+        verification_time = time.time() - verification_start
+        logger.info(f"Document verification completed in {verification_time:.2f} seconds")
+        
+        # Determine document type and industry
+        document_type = verification_result.get('document_type', 'unknown')
+        industry = verification_result.get('industry', 'unknown')
+        logger.info(f"Detected document type: {document_type}")
+        logger.info(f"Detected industry: {industry}")
+        
+        # Select agents and tasks based on document type and industry
+        if document_type == 'annual_report' and industry == 'finance':
+            agents = [financial_analyst, investment_specialist, risk_assessor, report_coordinator]
+            tasks = [financial_analysis_task, investment_analysis_task, risk_assessment_task, report_synthesis_task]
+        elif document_type == 'quarterly_report' and industry == 'technology':
+            agents = [financial_analyst, investment_specialist, risk_assessor, report_coordinator]
+            tasks = [financial_analysis_task, investment_analysis_task, risk_assessment_task, report_synthesis_task]
+        else:
+            agents = [financial_analyst, data_extractor, investment_analyst, risk_analyst]
+            tasks = [comprehensive_financial_analysis]
+        
+        # Create the dynamic crew
+        dynamic_financial_crew = Crew(
+            agents=agents,
+            tasks=tasks,
+            process=Process.sequential,
+            verbose=True,
+            memory=True
+        )
+        
+        # Execute the dynamic workflow
+        result = dynamic_financial_crew.kickoff({
+            "query": query,
+            "file_path": file_path
+        })
+        
+        # Track performance
+        track_crew_performance(crew_name, start_time)
+        
+        # Log detailed performance metrics
+        logger.info(f"PERFORMANCE METRICS - Dynamic Crew:")
+        logger.info(f"  Total Execution Time: {time.time() - start_time:.2f}s")
+        logger.info(f"  Document Verification: {verification_time:.2f}s")
+        
+        return result
+        
+        logger.info(f"  Document Verification: {verification_time:.2f}s")
+        logger.info(f"  Financial Analysis: {financial_time:.2f}s")
+        logger.info(f"  Parallel Processing: {parallel_time:.2f}s")
+        logger.info(f"    Investment Analysis: {investment_time:.2f}s")
+        logger.info(f"    Risk Analysis: {risk_time:.2f}s")
+        logger.info(f"  Report Synthesis: {synthesis_time:.2f}s")
+        logger.info(f"  Performance Gain: Enhanced parallel processing vs sequential estimated")
+        
+        # Process the final result
+        if final_result is None:
+            final_result = "No analysis result was generated from the parallel workflow. Please try again."
+        elif hasattr(final_result, "raw"):
+            final_result = str(final_result.raw)
+        else:
+            final_result = str(final_result)
+            
+        return final_result
+        
+    except Exception as e:
+        # Track performance even on error
+        track_crew_performance(crew_name, start_time)
+        execution_time = time.time() - start_time
+        logger.error(f"Parallel crew workflow error after {execution_time:.2f} seconds: {e}")
+        logger.info("Falling back to hierarchical crew configuration due to error")
+        # Fall back to the hierarchical crew configuration
+        return run_enhanced_multi_agent_crew(query, file_path)
+
+@cache_analysis_result(ttl=14400)  # Cache for 4 hours
+def run_dynamic_multi_agent_crew(query: str, file_path: str) -> str:
+    """Run a dynamic multi-agent crew with agent selection based on document type and industry"""
+    start_time = time.time()
+    crew_name = "dynamic_crew"
+    try:
+        logger.info("Starting dynamic multi-agent financial analysis workflow")
+        
+        # First, read and classify the document
+        from tools import financial_document_tool, document_classifier_tool
+        
+        # Read the document
+        document_content = financial_document_tool._run(file_path)
+        
+        # Classify the document
+        classification = document_classifier_tool._run(document_content)
+        document_type = classification.get("document_type", "unknown")
+        industry = classification.get("industry", "general")
+        processing_speed = classification.get("processing_speed", "standard")
+        
+        logger.info(f"Document classified as: {document_type} in {industry} industry with {processing_speed} processing speed")
+        
+        # Create dynamic agents based on classification
+        from agents import create_dynamic_agents
+        dynamic_agents = create_dynamic_agents(document_type, industry, processing_speed)
+        
+        # Create the crew with dynamic agents
+        dynamic_financial_crew = Crew(
+            agents=[
+                dynamic_agents["document_verifier"],
+                dynamic_agents["financial_analyst"], 
+                dynamic_agents["investment_specialist"],
+                dynamic_agents["risk_assessor"],
+                dynamic_agents["report_coordinator"]
+            ],
+            tasks=[
+                document_verification_task,
+                financial_analysis_task,
+                investment_analysis_task,
+                risk_assessment_task,
+                report_synthesis_task
+            ],
+            process=Process.hierarchical,
+            verbose=True,
+            manager_llm=llm,
+            memory=True,
+            planning=True
+        )
+
+        # Execute the dynamic workflow
+        result = dynamic_financial_crew.kickoff({
+            "query": query, 
+            "file_path": file_path
+        })
+        
+        # Track performance
+        track_crew_performance(crew_name, start_time)
+        
+        execution_time = time.time() - start_time
+        logger.info(f"Dynamic CrewAI workflow completed in {execution_time:.2f} seconds")
+        logger.info(f"Dynamic CrewAI workflow completed. Result type: {type(result)}")
+        logger.info(f"Dynamic CrewAI result length: {len(str(result)) if result else 0}")
+        logger.info(f"Dynamic CrewAI result preview: {str(result)[:200] if result else 'None'}")
+        
+        # Process the result from the dynamic workflow
+        if result is None:
+            result = "No analysis result was generated from the dynamic workflow. Please try again."
+        elif hasattr(result, "raw"):
+            result = str(result.raw)
+        else:
+            result = str(result)
+            
+        # Validate result quality
+        if len(result.strip()) < 100:
+            logger.warning(f"Dynamic CrewAI result appears incomplete: {result[:100]}")
+            # Fall back to the parallel crew configuration
+            logger.info("Falling back to parallel crew configuration")
+            return run_parallel_multi_agent_crew(query, file_path)
+            
+        return result
+        
+    except Exception as e:
+        # Track performance even on error
+        track_crew_performance(crew_name, start_time)
+        execution_time = time.time() - start_time
+        logger.error(f"Dynamic crew workflow error after {execution_time:.2f} seconds: {e}")
+        logger.info("Falling back to parallel crew configuration due to error")
+        # Fall back to the parallel crew configuration
+        return run_parallel_multi_agent_crew(query, file_path)
 
 def run_crew_with_mode(query: str, file_path: str, use_enhanced: bool = True) -> str:
     """Run crew analysis with option to choose enhanced multi-agent or original single-agent mode"""
     if use_enhanced:
         try:
-            return run_enhanced_multi_agent_crew(query, file_path)
+            # Try the dynamic processing approach first
+            try:
+                return run_dynamic_multi_agent_crew(query, file_path)
+            except Exception as dynamic_error:
+                logger.warning(f"Dynamic processing failed, falling back to parallel: {dynamic_error}")
+                try:
+                    return run_parallel_multi_agent_crew(query, file_path)
+                except Exception as parallel_error:
+                    logger.warning(f"Parallel processing failed, falling back to hierarchical: {parallel_error}")
+                    return run_enhanced_multi_agent_crew(query, file_path)
         except Exception as e:
             logger.warning(f"Enhanced mode failed, falling back to original: {e}")
             return run_crew(query, file_path)
     else:
         return run_crew(query, file_path)
 
-
+def compare_crew_performance(query: str, file_path: str) -> Dict[str, Any]:
+    """Compare performance of different crew implementations"""
+    performance_results = {}
+    
+    # Test original crew
+    start_time = time.time()
+    try:
+        original_result = run_crew(query, file_path)
+        original_time = time.time() - start_time
+        performance_results["original"] = {
+            "time": original_time,
+            "success": True,
+            "result_length": len(original_result) if original_result else 0
+        }
+    except Exception as e:
+        performance_results["original"] = {
+            "time": time.time() - start_time,
+            "success": False,
+            "error": str(e)
+        }
+    
+    # Test enhanced crew
+    start_time = time.time()
+    try:
+        enhanced_result = run_enhanced_multi_agent_crew(query, file_path)
+        enhanced_time = time.time() - start_time
+        performance_results["enhanced"] = {
+            "time": enhanced_time,
+            "success": True,
+            "result_length": len(enhanced_result) if enhanced_result else 0
+        }
+    except Exception as e:
+        performance_results["enhanced"] = {
+            "time": time.time() - start_time,
+            "success": False,
+            "error": str(e)
+        }
+    
+    # Test parallel crew
+    start_time = time.time()
+    try:
+        parallel_result = run_parallel_multi_agent_crew(query, file_path)
+        parallel_time = time.time() - start_time
+        performance_results["parallel"] = {
+            "time": parallel_time,
+            "success": True,
+            "result_length": len(parallel_result) if parallel_result else 0
+        }
+    except Exception as e:
+        performance_results["parallel"] = {
+            "time": time.time() - start_time,
+            "success": False,
+            "error": str(e)
+        }
+    
+    # Calculate performance improvements
+    if performance_results["original"]["success"] and performance_results["parallel"]["success"]:
+        original_time = performance_results["original"]["time"]
+        parallel_time = performance_results["parallel"]["time"]
+        if original_time > 0:
+            improvement = ((original_time - parallel_time) / original_time) * 100
+            performance_results["improvement_percentage"] = improvement
+    
+    return performance_results
 
 @app.get("/")
 async def root():
@@ -1174,6 +1618,32 @@ async def search_user_documents(
         logger.error(f"Error searching user documents: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/document/classify", response_model=dict)
+async def classify_document(
+    file_path: str,
+    session: Session = Depends(get_db_session)
+):
+    """Classify a financial document by type and industry"""
+    try:
+        from tools import financial_document_tool, document_classifier_tool
+        
+        # Read the document
+        document_content = financial_document_tool._run(file_path)
+        
+        # Classify the document
+        classification = document_classifier_tool._run(document_content)
+        
+        return {
+            "classification": classification,
+            "document_preview": document_content[:500] + "..." if len(document_content) > 500 else document_content
+        }
+    except Exception as e:
+        logger.error(f"Document classification error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Document classification failed: {str(e)}"
+        )
+
 @app.delete("/documents/{document_id}")
 async def delete_document(
     document_id: str,
@@ -1255,6 +1725,73 @@ async def delete_analysis(
         # Rollback any changes in case of error
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to delete analysis: {str(e)}")
+
+@app.get("/performance/agents", response_model=dict)
+async def get_agent_performance():
+    """Get performance metrics for all agents/crews"""
+    try:
+        # Get performance metrics from main.py
+        summary = get_crew_performance_summary()
+        return {
+            "agent_performance": summary,
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        logger.error(f"Agent performance metrics error: {e}")
+        return {
+            "agent_performance": {},
+            "error": str(e),
+            "timestamp": time.time()
+        }
+
+@app.get("/performance/tools", response_model=dict)
+async def get_tool_performance():
+    """Get performance metrics for all tools"""
+    try:
+        from tools import get_tool_performance_summary
+        summary = get_tool_performance_summary()
+        return {
+            "tool_performance": summary,
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        logger.error(f"Tool performance metrics error: {e}")
+        return {
+            "tool_performance": {},
+            "error": str(e),
+            "timestamp": time.time()
+        }
+
+@app.get("/performance/dashboard", response_model=dict)
+async def performance_dashboard():
+    """Get a comprehensive performance dashboard"""
+    try:
+        # Get agent performance metrics
+        from agents import get_agent_performance_summary, llm_observability
+        agent_summary = get_agent_performance_summary()
+        
+        # Get tool performance metrics
+        from tools import get_tool_performance_summary
+        tool_summary = get_tool_performance_summary()
+        
+        # Get LLM metrics
+        llm_metrics = llm_observability.get_metrics_summary()
+        
+        return {
+            "agent_performance": agent_summary,
+            "tool_performance": tool_summary,
+            "llm_metrics": llm_metrics,
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        logger.error(f"Performance dashboard error: {e}")
+        return {
+            "agent_performance": {},
+            "tool_performance": {},
+            "llm_metrics": {},
+            "error": str(e),
+            "timestamp": time.time()
+        }
 
 @app.get("/statistics", response_model=dict)
 async def get_analysis_statistics(
@@ -1351,6 +1888,24 @@ async def get_storage_statistics():
     except Exception as e:
         logger.error(f"Error getting storage stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/performance/compare", response_model=dict)
+async def compare_performance(
+    query: str = "Performance comparison test",
+    file_path: str = "test_file_path.pdf",
+    session: Session = Depends(get_db_session)
+):
+    """Compare performance of different crew implementations"""
+    try:
+        logger.info(f"Performance comparison requested for query: {query}")
+        results = compare_crew_performance(query, file_path)
+        return results
+    except Exception as e:
+        logger.error(f"Performance comparison error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Performance comparison failed: {str(e)}"
+        )
 
 # Export functionality
 from fastapi.responses import Response

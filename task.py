@@ -6,7 +6,10 @@ from agents import (
     # Legacy aliases for compatibility
     data_extractor, investment_analyst, risk_analyst
 )
-from tools import search_tool, financial_document_tool, investment_analysis_tool, risk_assessment_tool
+from tools import (
+    search_tool, financial_document_tool, investment_analysis_tool, risk_assessment_tool,
+    financial_search_tool, investment_search_tool, risk_search_tool, industry_search_tool
+)
 
 # Task 1: Document Verification and Validation (Simplified)
 document_verification_task = Task(
@@ -30,7 +33,7 @@ document_verification_task = Task(
 
     agent=document_verifier,
     tools=[financial_document_tool],
-    async_execution=False
+    async_execution=True  # Enable async execution for better performance
 )
 
 # Task 2: Financial Data Analysis (Focused)
@@ -66,8 +69,8 @@ financial_analysis_task = Task(
     """,
 
     agent=financial_analyst,
-    tools=[financial_document_tool, search_tool],
-    async_execution=False,
+    tools=[financial_document_tool, financial_search_tool],  # Use specialized financial search tool
+    async_execution=True,
     context=[document_verification_task]
 )
 
@@ -103,8 +106,8 @@ investment_analysis_task = Task(
     """,
 
     agent=investment_specialist,
-    tools=[investment_analysis_tool, search_tool],
-    async_execution=False,
+    tools=[investment_analysis_tool, investment_search_tool],  # Use specialized investment search tool
+    async_execution=True,
     context=[document_verification_task, financial_analysis_task]
 )
 
@@ -138,9 +141,10 @@ risk_assessment_task = Task(
     """,
 
     agent=risk_assessor,
-    tools=[risk_assessment_tool, search_tool],
-    async_execution=False,
-    context=[document_verification_task, financial_analysis_task, investment_analysis_task]
+    tools=[risk_assessment_tool, risk_search_tool],  # Use specialized risk search tool
+    async_execution=True,
+    context=[document_verification_task, financial_analysis_task]
+    # Removed dependency on investment_analysis_task to enable parallel execution
 )
 
 # Task 5: Report Synthesis (Efficient)
@@ -179,8 +183,8 @@ report_synthesis_task = Task(
     """,
 
     agent=report_coordinator,
-    tools=[search_tool],
-    async_execution=False,
+    tools=[search_tool, industry_search_tool],  # Use generic search and industry search tools
+    async_execution=False,  # Keep as False since this is the final task
     context=[document_verification_task, financial_analysis_task, investment_analysis_task, risk_assessment_task]
 )
 
@@ -219,7 +223,7 @@ comprehensive_financial_analysis = Task(
     """,
 
     agent=report_coordinator,
-    tools=[financial_document_tool, investment_analysis_tool, risk_assessment_tool, search_tool],
+    tools=[financial_document_tool, investment_analysis_tool, risk_assessment_tool, search_tool, industry_search_tool],
     async_execution=False
 )
 
