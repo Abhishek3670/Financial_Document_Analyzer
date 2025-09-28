@@ -435,18 +435,38 @@ class AnalysisService:
     def delete_analysis(session: Session, analysis_id: str, user_id: str) -> bool:
         """Delete analysis (with user verification)"""
         try:
+            # First verify the analysis exists and belongs to the user
             analysis = session.query(Analysis).filter(
                 and_(Analysis.id == analysis_id, Analysis.user_id == user_id)
             ).first()
             
-            if analysis:
-                session.delete(analysis)
-                session.flush()
-                logger.info(f"Deleted analysis: {analysis_id}")
-                return True
-            return False
+            if not analysis:
+                logger.warning(f"Attempt to delete non-existent analysis {analysis_id} by user {user_id}")
+                return False
+            
+            # Log the deletion attempt
+            logger.info(f"Deleting analysis {analysis_id} for user {user_id}")
+            
+            # First delete related history records to avoid foreign key constraint violation
+            history_records = session.query(AnalysisHistory).filter(
+                AnalysisHistory.analysis_id == analysis_id
+            ).all()
+            
+            for record in history_records:
+                session.delete(record)
+            
+            logger.info(f"Deleted {len(history_records)} related history records for analysis {analysis_id}")
+            
+            # Now delete the analysis itself
+            session.delete(analysis)
+            session.flush()
+            
+            logger.info(f"Successfully deleted analysis: {analysis_id}")
+            return True
         except Exception as e:
-            logger.error(f"Error deleting analysis: {e}")
+            logger.error(f"Error deleting analysis {analysis_id}: {e}")
+            # Don't raise the exception here, just return False
+            # The caller can decide how to handle the failure
             return False
     
     @staticmethod

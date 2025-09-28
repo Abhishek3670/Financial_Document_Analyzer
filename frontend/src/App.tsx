@@ -59,7 +59,7 @@ function App() {
       const analysisResponse: AnalysisResponse = {
         id: analysis.id,
         status: 'success',
-        result: analysis.query, // Use query as fallback for result
+        result: analysis.result || analysis.query, // Use actual result, fallback to query
         analysis_id: analysis.id,
         query: analysis.query,
         created_at: analysis.created_at,

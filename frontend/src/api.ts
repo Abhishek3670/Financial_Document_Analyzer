@@ -139,7 +139,8 @@ export interface UploadResponse {
     processed_at: string;
   };
   query: string;
-  analysis: string;
+  analysis?: string; // This might not be available immediately
+  message?: string; // New field for status message
   metadata: {
     processing_id: string;
     file_type: string;
@@ -325,6 +326,49 @@ export const documentAPI = {
     }
   },
 
+  // New function to poll for analysis completion
+  pollAnalysisStatus: async (
+    analysisId: string,
+    onProgress?: (progress: number) => void,
+    interval: number = 2000, // 2 seconds
+    maxAttempts: number = 150 // 5 minutes (150 * 2 seconds)
+  ): Promise<{ status: string; analysis?: any }> => {
+    let attempts = 0;
+    
+    return new Promise((resolve, reject) => {
+      const poll = async () => {
+        try {
+          attempts++;
+          
+          // Get analysis status
+          const statusResponse = await documentAPI.getAnalysisStatus(analysisId);
+          
+          // Call progress callback if provided
+          onProgress?.(statusResponse.progress_percentage);
+          
+          // Check if analysis is complete
+          if (statusResponse.status === 'completed') {
+            // Get the full analysis
+            const analysisResponse = await documentAPI.getAnalysisById(analysisId);
+            resolve({ status: 'completed', analysis: analysisResponse });
+          } else if (statusResponse.status === 'failed') {
+            reject(new Error('Analysis failed'));
+          } else if (attempts >= maxAttempts) {
+            reject(new Error('Analysis timeout'));
+          } else {
+            // Continue polling
+            setTimeout(poll, interval);
+          }
+        } catch (error) {
+          reject(error);
+        }
+      };
+      
+      // Start polling
+      poll();
+    });
+  },
+
   getAnalysisHistory: async (
     page: number = 1,
     pageSize: number = 10,
@@ -381,7 +425,8 @@ export const documentAPI = {
       const response = await api.delete(`/analysis/${analysisId}`);
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Failed to delete analysis';
+      console.error('Delete analysis error:', error);
+      const message = error.response?.data?.detail || error.message || 'Failed to delete analysis';
       throw new Error(message);
     }
   },

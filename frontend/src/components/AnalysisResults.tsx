@@ -253,7 +253,7 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
         </div>
         
         <div className="prose prose-lg max-w-none">
-          {formatAnalysis(result.analysis || '')}
+          {formatAnalysis(result.result || '')}
         </div>
         
         {/* Metadata */}

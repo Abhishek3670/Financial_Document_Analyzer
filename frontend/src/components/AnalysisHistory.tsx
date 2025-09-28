@@ -105,15 +105,22 @@ const AnalysisHistory: React.FC<AnalysisHistoryProps> = ({ onViewAnalysis }) => 
   };
 
   const handleDeleteAnalysis = async (analysisId: string) => {
-    if (!window.confirm('Are you sure you want to delete this analysis?')) return;
+    if (!window.confirm('Are you sure you want to delete this analysis? This action cannot be undone.')) return;
 
     try {
       await documentAPI.deleteAnalysis(analysisId);
       
+      // Show success message
+      // In a real application, you might want to use a toast notification here
+      
       // Refresh the list
       await loadAnalyses(true);
     } catch (err: any) {
-      setError(err.message || 'Failed to delete analysis');
+      console.error('Delete analysis error:', err);
+      setError(err.message || 'Failed to delete analysis. Please try again.');
+      
+      // Show error message to user
+      // In a real application, you might want to use a toast notification here
     }
   };
 

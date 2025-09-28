@@ -58,26 +58,72 @@ const FileUpload: React.FC<FileUploadProps> = ({
     setProgress(0);
 
     try {
-      const result = await documentAPI.uploadAndAnalyze(
+      // Upload file and start analysis
+      const uploadResult = await documentAPI.uploadAndAnalyze(
         selectedFile,
         query,
         keepFile,
         (progress) => setProgress(progress)
       );
 
-      // Convert the upload response to the expected AnalysisResponse format
-      const analysisResponse: AnalysisResponse = {
-        id: result.analysis_id,
-        status: result.status,
-        result: result.analysis,
-        analysis: result.analysis,
-        query: result.query,
-        created_at: result.metadata.analysis_timestamp,
-        file_info: result.file_info,
-        metadata: result.metadata
-      };
+      // If analysis is already complete (for backward compatibility)
+      if (uploadResult.status === 'success' && uploadResult.analysis) {
+        // Convert the upload response to the expected AnalysisResponse format
+        const analysisResponse: AnalysisResponse = {
+          id: uploadResult.analysis_id,
+          status: uploadResult.status,
+          result: uploadResult.analysis,
+          analysis: uploadResult.analysis,
+          query: uploadResult.query,
+          created_at: uploadResult.metadata.analysis_timestamp,
+          file_info: uploadResult.file_info,
+          metadata: uploadResult.metadata
+        };
 
-      onAnalysisComplete(analysisResponse);
+        onAnalysisComplete(analysisResponse);
+      } else if (uploadResult.status === 'processing' && uploadResult.analysis_id) {
+        // Analysis is processing, start polling for completion
+        try {
+          const pollResult = await documentAPI.pollAnalysisStatus(
+            uploadResult.analysis_id,
+            (progress) => setProgress(progress)
+          );
+          
+          if (pollResult.status === 'completed' && pollResult.analysis) {
+            // Convert the analysis response to the expected AnalysisResponse format
+            const analysisData = pollResult.analysis.analysis;
+            const documentData = pollResult.analysis.document;
+            
+            const analysisResponse: AnalysisResponse = {
+              id: analysisData.id,
+              status: 'success',
+              result: analysisData.result || '',
+              analysis: analysisData.result || '',
+              query: analysisData.query || '',
+              created_at: analysisData.created_at,
+              completed_at: analysisData.completed_at,
+              file_info: {
+                filename: documentData?.original_filename || 'Unknown',
+                size_mb: documentData ? 
+                  Math.round((documentData.file_size / 1024 / 1024) * 100) / 100 : 0,
+                processed_at: analysisData.completed_at || analysisData.created_at
+              },
+              metadata: {
+                processing_id: analysisData.id,
+                file_type: 'PDF',
+                analysis_timestamp: analysisData.completed_at || analysisData.created_at,
+                kept_file: false
+              }
+            };
+
+            onAnalysisComplete(analysisResponse);
+          }
+        } catch (pollError: any) {
+          throw new Error(`Analysis failed: ${pollError.message || 'Unknown error'}`);
+        }
+      } else {
+        throw new Error('Unexpected response from server');
+      }
       
       // Reset form
       onFormStateChange({ 

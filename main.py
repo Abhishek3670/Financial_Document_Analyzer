@@ -1,5 +1,5 @@
 # Authentication imports
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, status, Depends, Request
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, status, Depends, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import os
@@ -640,6 +640,7 @@ async def reset_password(
 @app.post("/analyze", response_model=dict)
 async def analyze_document_endpoint(
     request: Request,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="PDF file to analyze (max 50MB)"),
     query: str = Form(
         default="Provide a comprehensive financial analysis of this document", 
@@ -754,42 +755,20 @@ async def analyze_document_endpoint(
         AnalysisService.update_analysis_status(session, analysis_id, "processing")
         session.commit()
         
-        # Process the financial document
-        analysis_result = run_crew_with_mode(query=query, file_path=file_path, use_enhanced=True)
-        
-        # Complete the analysis - with better error handling
-        logger.info(f"Saving analysis result of length: {len(analysis_result)}")
-        logger.info("Calling AnalysisService.complete_analysis")
-        completion_success = AnalysisService.complete_analysis(
-            session=session,
+        # Add the analysis task to background tasks
+        background_tasks.add_task(
+            process_analysis_background,
             analysis_id=analysis_id,
-            result=analysis_result,
-            summary=None,  # You could add logic to extract a summary
-            confidence_score=None,  # You could add confidence scoring
-            key_insights_count=None  # You could count key insights
-        )
-        
-        # Mark document as processed
-        DocumentService.mark_document_processed(session, document_id)
-        
-        # Log completion
-        AnalysisHistoryService.log_action(
-            session=session,
-            analysis_id=analysis_id,
-            action="completed",
+            document_id=document_id,
+            query=query,
+            file_path=file_path,
             user_id=user_id,
-            details="Analysis completed successfully"
+            keep_file=keep_file
         )
-        session.commit()
         
-        if not completion_success:
-            logger.error(f"Failed to complete analysis {analysis_id}")
-            raise HTTPException(status_code=500, detail="Failed to save analysis results")
-        
-        logger.info(f"Analysis {analysis_id} completed successfully")
-        
+        # Return immediately with analysis ID for polling
         return {
-            "status": "success",
+            "status": "processing",
             "analysis_id": analysis_id,
             "document_id": document_id,
             "user_id": user_id,
@@ -799,7 +778,7 @@ async def analyze_document_endpoint(
                 "processed_at": datetime.utcnow().isoformat()
             },
             "query": query,
-            "analysis": analysis_result,
+            "message": "Analysis started. Please poll the /analysis/{analysis_id}/status endpoint for progress.",
             "metadata": {
                 "processing_id": file_id,
                 "file_type": "PDF",
@@ -840,6 +819,104 @@ async def analyze_document_endpoint(
         )
     
     finally:
+        # Don't clean up the file here since background task needs it
+        # Cleanup will be handled in the background task
+        pass
+
+def process_analysis_background(
+    analysis_id: str,
+    document_id: str,
+    query: str,
+    file_path: str,
+    user_id: str,
+    keep_file: bool
+):
+    """Process the analysis in the background using a separate thread to avoid blocking"""
+    # Create a new database session for the background task
+    from database import db_manager
+    if not db_manager:
+        from database import init_database
+        db_manager = init_database()
+    
+    session = db_manager.get_session()
+    try:
+        # Run the CrewAI analysis in a separate thread to avoid blocking
+        import concurrent.futures
+        import threading
+        
+        logger.info(f"Starting CrewAI analysis in thread: {threading.current_thread().name}")
+        
+        # Use a thread pool executor to run the CPU-intensive CrewAI task
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(run_crew_with_mode, query=query, file_path=file_path, use_enhanced=True)
+            # Wait for completion with a timeout (e.g., 10 minutes)
+            analysis_result = future.result(timeout=600)  # 10 minutes timeout
+        
+        logger.info(f"CrewAI analysis completed in thread: {threading.current_thread().name}")
+        logger.info(f"CrewAI result length: {len(analysis_result)}")
+        
+        # Complete the analysis - with better error handling
+        logger.info("Calling AnalysisService.complete_analysis")
+        completion_success = AnalysisService.complete_analysis(
+            session=session,
+            analysis_id=analysis_id,
+            result=analysis_result,
+            summary=None,  # You could add logic to extract a summary
+            confidence_score=None,  # You could add confidence scoring
+            key_insights_count=None  # You could count key insights
+        )
+        
+        # Mark document as processed
+        try:
+            DocumentService.mark_document_processed(session, document_id)
+        except Exception as doc_error:
+            logger.error(f"Error marking document as processed: {doc_error}")
+        
+        # Log completion
+        try:
+            AnalysisHistoryService.log_action(
+                session=session,
+                analysis_id=analysis_id,
+                action="completed",
+                user_id=user_id,
+                details="Analysis completed successfully"
+            )
+        except Exception as log_error:
+            logger.error(f"Error logging analysis completion: {log_error}")
+            
+        try:
+            session.commit()
+        except Exception as commit_error:
+            logger.error(f"Error committing session: {commit_error}")
+            session.rollback()
+        
+        if not completion_success:
+            logger.error(f"Failed to complete analysis {analysis_id}")
+            try:
+                AnalysisService.fail_analysis(session, analysis_id, "Failed to save analysis results")
+                session.commit()
+            except Exception as fail_error:
+                logger.error(f"Error marking analysis as failed: {fail_error}")
+        
+        logger.info(f"Analysis {analysis_id} completed successfully")
+        
+    except concurrent.futures.TimeoutError:
+        logger.error(f"Analysis {analysis_id} timed out")
+        # Mark analysis as failed due to timeout
+        try:
+            AnalysisService.fail_analysis(session, analysis_id, "Analysis timed out after 10 minutes")
+            session.commit()
+        except Exception as db_error:
+            logger.error(f"Failed to mark analysis as failed in database: {db_error}")
+    except Exception as e:
+        logger.error(f"Error in background analysis processing: {e}")
+        # Mark analysis as failed
+        try:
+            AnalysisService.fail_analysis(session, analysis_id, str(e))
+            session.commit()
+        except Exception as db_error:
+            logger.error(f"Failed to mark analysis as failed in database: {db_error}")
+    finally:
         # Clean up uploaded file if not keeping it
         if file_path and os.path.exists(file_path):
             if not (keep_file or KEEP_UPLOADED_FILES):
@@ -850,12 +927,17 @@ async def analyze_document_endpoint(
                     logger.warning(f"Failed to cleanup file {file_path}: {cleanup_error}")
             else:
                 # Update document to reflect persistent storage
-                if document_id and session:
-                    try:
-                        DocumentService.set_document_persistent_storage(session, document_id, True)
-                        session.commit()
-                    except:
-                        pass
+                try:
+                    DocumentService.set_document_persistent_storage(session, document_id, True)
+                    session.commit()
+                except Exception as storage_error:
+                    logger.warning(f"Failed to update document storage status: {storage_error}")
+        
+        # Close the database session
+        try:
+            session.close()
+        except Exception as close_error:
+            logger.error(f"Error closing database session: {close_error}")
 
 if __name__ == "__main__":
     import uvicorn
@@ -1024,7 +1106,7 @@ async def delete_analysis(
             analysis_id=analysis_id,
             action="deleted",
             user_id=user_id,
-            details=f"Analysis deleted: {analysis.query[:100]}...",
+            details=f"Analysis deleted: {analysis.query[:100] if analysis.query else 'No query'}...",
             ip_address=get_client_info(request)['ip_address']
         )
         
@@ -1035,13 +1117,16 @@ async def delete_analysis(
             session.commit()
             return {"message": "Analysis deleted successfully", "analysis_id": analysis_id}
         else:
-            raise HTTPException(status_code=500, detail="Failed to delete analysis")
+            raise HTTPException(status_code=500, detail="Failed to delete analysis due to database constraints")
             
     except HTTPException:
+        # Re-raise HTTP exceptions to preserve status codes
         raise
     except Exception as e:
         logger.error(f"Error deleting analysis {analysis_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Rollback any changes in case of error
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete analysis: {str(e)}")
 
 @app.get("/statistics", response_model=dict)
 async def get_analysis_statistics(
