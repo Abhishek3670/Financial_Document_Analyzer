@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import FileUpload from './components/FileUpload';
 import AnalysisResults from './components/AnalysisResults';
 import AnalysisHistory from './components/AnalysisHistory';
+import Documents from './components/Documents';
 import Header from './components/Header';
 import Navigation, { NavigationTab } from './components/Navigation';
 import { AnalysisResponse, AnalysisHistoryItem } from './types';
@@ -102,45 +103,6 @@ function App() {
     }
   };
 
-  // Backend status indicator
-  const renderBackendStatus = () => {
-    if (backendStatus === 'checking') {
-      return (
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-yellow-600"></div>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-yellow-700">
-                Checking backend connection...
-              </p>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    
-    if (backendStatus === 'offline') {
-      return (
-        <div className="bg-red-50 border-l-4 border-red-400 p-4">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <div className="w-5 h-5 bg-red-400 rounded-full"></div>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-red-700">
-                Backend server is offline. Please make sure the server is running on port 8000.
-              </p>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return null;
-  };
-
   // Render main content based on active tab and state
   const renderMainContent = () => {
     // If we have an analysis result (from upload or history), show it
@@ -188,6 +150,13 @@ function App() {
           </div>
         );
       
+      case 'documents':
+        return (
+          <div className="space-y-6">
+            <Documents />
+          </div>
+        );
+      
       default:
         return (
           <div className="text-center py-12">
@@ -200,11 +169,8 @@ function App() {
   return (
     <ToastProvider>
     <AuthProvider>
-    <div className="min-h-screen bg-gray-50">
-      <Header />
-      
-      {/* Backend status indicator */}
-      {renderBackendStatus()}
+    <div className="flex flex-col min-h-screen bg-gray-50">
+      <Header backendStatus={backendStatus} />
       
       {/* Navigation */}
       <Navigation 
@@ -213,18 +179,15 @@ function App() {
       />
       
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="flex-grow container mx-auto px-4 py-8">
         {renderMainContent()}
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 py-6 mt-12">
+      <footer className="bg-white border-t border-gray-200 py-6">
         <div className="container mx-auto px-4 text-center text-gray-600 text-sm">
           <p>
-            Financial Document Analyzer v2.0 • 
-            Backend: <span className={`font-medium ${backendStatus === 'online' ? 'text-green-600' : 'text-red-600'}`}>
-              {backendStatus === 'online' ? 'Online' : backendStatus === 'offline' ? 'Offline' : 'Checking...'}
-            </span>
+            Financial Document Analyzer
           </p>
         </div>
       </footer>

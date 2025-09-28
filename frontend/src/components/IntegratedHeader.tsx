@@ -3,7 +3,6 @@ import { BarChart3, FileText, User, Settings, LogOut } from 'lucide-react';
 import { useAuth } from './Auth';
 import { EnhancedAuthModalWithReset } from './AuthEnhanced';
 import { ProfileManagementDashboard } from './AuthProfileManagement';
-import { EmailVerificationBanner } from './AuthEmailVerification';
 import { useToast } from './Toast';
 
 const IntegratedHeader: React.FC = () => {
@@ -102,17 +101,7 @@ const IntegratedHeader: React.FC = () => {
             </div>
             
             <div className="flex items-center space-x-4">
-              <nav className="hidden md:flex space-x-6">
-                <a href="#" className="text-gray-600 hover:text-blue-600 transition-colors">
-                  Dashboard
-                </a>
-                <a href="#" className="text-gray-600 hover:text-blue-600 transition-colors">
-                  About
-                </a>
-                <a href="#" className="text-gray-600 hover:text-blue-600 transition-colors">
-                  Help
-                </a>
-              </nav>
+              {/* Navigation links removed as they were not implemented */}
 
               {/* Authentication Section */}
               {user ? (
@@ -129,20 +118,7 @@ const IntegratedHeader: React.FC = () => {
           </div>
         </div>
 
-        {/* Email Verification Banner */}
-        {user && !user.is_verified && (
-          <div className="border-t border-gray-200">
-            <div className="container mx-auto px-4">
-              <EmailVerificationBanner 
-                user={user}
-                onVerificationComplete={() => {
-                  showToast('Email verified successfully!', 'success');
-                  refreshUser();
-                }}
-              />
-            </div>
-          </div>
-        )}
+
       </header>
 
       {/* Authentication Modal */}

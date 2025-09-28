@@ -42,7 +42,7 @@ def migrate_database():
             "ALTER TABLE users ADD COLUMN username VARCHAR", 
             "ALTER TABLE users ADD COLUMN password_hash VARCHAR",
             "ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1",
-            "ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT 0",
+
             "ALTER TABLE users ADD COLUMN first_name VARCHAR",
             "ALTER TABLE users ADD COLUMN last_name VARCHAR",
             "ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER DEFAULT 0",

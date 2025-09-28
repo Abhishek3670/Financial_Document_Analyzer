@@ -8,6 +8,9 @@ from langchain_community.document_loaders import PyPDFLoader
 # Load environment variables
 load_dotenv()
 
+# Import Redis cache
+from redis_cache import cache_result, cache_llm_result, cache_analysis_result
+
 # Creating search tool with Serper
 SERPER_API_KEY = os.getenv("SERPER_API_KEY")
 search_tool = SerperDevTool(api_key=SERPER_API_KEY)
@@ -16,6 +19,7 @@ class FinancialDocumentReader(BaseTool):
     name: str = "Financial Document Reader"
     description: str = "Reads and processes financial documents from PDF files"
 
+    @cache_analysis_result(ttl=3600)  # Cache for 1 hour
     def _run(self, file_path: str) -> str:
         """Read and process a financial document from a PDF file.
         
@@ -64,6 +68,7 @@ class InvestmentAnalyzer(BaseTool):
     name: str = "Investment Analyzer"
     description: str = "Analyzes financial document data and provides investment insights"
 
+    @cache_llm_result(model="investment-analysis", ttl=7200)  # Cache for 2 hours
     def _run(self, financial_document_data: str) -> str:
         """Analyze financial document data and provide investment insights.
         
@@ -128,6 +133,7 @@ class RiskAssessor(BaseTool):
     name: str = "Risk Assessor"
     description: str = "Assesses risks based on financial document data"
 
+    @cache_llm_result(model="risk-assessment", ttl=7200)  # Cache for 2 hours
     def _run(self, financial_document_data: str) -> str:
         """Assess risks based on financial document data.
         

@@ -70,17 +70,6 @@ def get_current_active_user(current_user: User = Depends(get_current_user)) -> U
         )
     return current_user
 
-def get_current_verified_user(current_user: User = Depends(get_current_active_user)) -> User:
-    """
-    FastAPI dependency to get current verified authenticated user
-    """
-    if not current_user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email verification required"
-        )
-    return current_user
-
 def get_optional_user(
     request: Request,
     session: Session = Depends(get_db_session)
@@ -162,18 +151,6 @@ def require_auth(user: Optional[User]) -> User:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",
             headers={"WWW-Authenticate": "Bearer"},
-        )
-    return user
-
-def require_verification(user: User) -> User:
-    """
-    Utility function to require email verification
-    Raises HTTPException if user is not verified
-    """
-    if not user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email verification required"
         )
     return user
 

@@ -6,18 +6,49 @@ import os
 import hashlib
 import logging
 from datetime import datetime, timedelta
-from typing import List, Optional, Tuple
+from typing import List, Tuple, Optional
+
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func
+from datetime import datetime, timedelta
+import logging
+from typing import List, Tuple, Optional
 
 from models import User, Document, Analysis, AnalysisHistory
 from models import DocumentResponse, AnalysisResponse, AnalysisHistoryResponse
 from database import get_database_manager
 
+# Import Redis cache
+from redis_cache import cache_result, cache_database_query
+
 logger = logging.getLogger(__name__)
 
 class UserService:
     """Enhanced UserService with authentication support"""
+    
+    @staticmethod
+    @cache_database_query(table="users", ttl=1800)  # Cache for 30 minutes
+    def get_user_by_id(session: Session, user_id: str) -> Optional[User]:
+        """Get user by ID"""
+        return session.query(User).filter(User.id == user_id).first()
+    
+    @staticmethod
+    @cache_database_query(table="users", ttl=1800)  # Cache for 30 minutes
+    def get_user_by_session_id(session: Session, session_id: str) -> Optional[User]:
+        """Get user by session ID"""
+        return session.query(User).filter(User.session_id == session_id).first()
+    
+    @staticmethod
+    @cache_database_query(table="users", ttl=1800)  # Cache for 30 minutes
+    def get_user_by_email(session: Session, email: str) -> Optional[User]:
+        """Get user by email"""
+        return session.query(User).filter(User.email == email).first()
+    
+    @staticmethod
+    @cache_database_query(table="users", ttl=1800)  # Cache for 30 minutes
+    def get_user_by_username(session: Session, username: str) -> Optional[User]:
+        """Get user by username"""
+        return session.query(User).filter(User.username == username).first()
     
     @staticmethod
     def create_user(session: Session, ip_address: str = None, user_agent: str = None) -> User:
@@ -31,26 +62,6 @@ class UserService:
         except Exception as e:
             logger.error(f"Error creating user: {e}")
             raise
-    
-    @staticmethod
-    def get_user_by_id(session: Session, user_id: str) -> Optional[User]:
-        """Get user by ID"""
-        return session.query(User).filter(User.id == user_id).first()
-    
-    @staticmethod
-    def get_user_by_session_id(session: Session, session_id: str) -> Optional[User]:
-        """Get user by session ID"""
-        return session.query(User).filter(User.session_id == session_id).first()
-    
-    @staticmethod
-    def get_user_by_email(session: Session, email: str) -> Optional[User]:
-        """Get user by email"""
-        return session.query(User).filter(User.email == email).first()
-    
-    @staticmethod
-    def get_user_by_username(session: Session, username: str) -> Optional[User]:
-        """Get user by username"""
-        return session.query(User).filter(User.username == username).first()
     
     @staticmethod
     def update_user_activity(session: Session, user_id: str) -> bool:
@@ -109,21 +120,7 @@ class UserService:
             return False
     
     @staticmethod
-    def verify_user_email(session: Session, user_id: str) -> bool:
-        """Mark user's email as verified"""
-        try:
-            user = session.query(User).filter(User.id == user_id).first()
-            if user:
-                user.is_verified = True
-                session.flush()
-                logger.info(f"User email verified: {user.email}")
-                return True
-            return False
-        except Exception as e:
-            logger.error(f"Error verifying user email: {e}")
-            return False
-    
-    @staticmethod
+    @cache_database_query(table="users", ttl=300)  # Cache for 5 minutes
     def get_authenticated_users(session: Session, limit: int = None) -> List[User]:
         """Get all authenticated users (users with email and password)"""
         query = session.query(User).filter(
@@ -137,6 +134,7 @@ class UserService:
         return query.all()
     
     @staticmethod
+    @cache_database_query(table="users", ttl=300)  # Cache for 5 minutes
     def get_session_users(session: Session, limit: int = None) -> List[User]:
         """Get all session-only users (users without email/password)"""
         query = session.query(User).filter(
@@ -174,6 +172,7 @@ class UserService:
             return 0
     
     @staticmethod
+    @cache_result(prefix="user_stats", ttl=600)  # Cache for 10 minutes
     def get_user_stats(session: Session) -> dict:
         """Get user statistics"""
         try:
@@ -183,14 +182,11 @@ class UserService:
             ).count()
             session_users = total_users - authenticated_users
             active_users = session.query(User).filter(User.is_active == True).count()
-            verified_users = session.query(User).filter(User.is_verified == True).count()
-            
             return {
                 "total_users": total_users,
                 "authenticated_users": authenticated_users,
                 "session_users": session_users,
-                "active_users": active_users,
-                "verified_users": verified_users
+                "active_users": active_users
             }
         except Exception as e:
             logger.error(f"Error getting user stats: {e}")
@@ -238,11 +234,13 @@ class DocumentService:
             raise
     
     @staticmethod
+    @cache_database_query(table="documents", ttl=1800)  # Cache for 30 minutes
     def get_document_by_id(session: Session, document_id: str) -> Optional[Document]:
         """Get document by ID"""
         return session.query(Document).filter(Document.id == document_id).first()
     
     @staticmethod
+    @cache_database_query(table="documents", ttl=600)  # Cache for 10 minutes
     def get_user_documents(
         session: Session, 
         user_id: str, 
@@ -267,6 +265,7 @@ class DocumentService:
             return [], 0
     
     @staticmethod
+    @cache_database_query(table="documents", ttl=1800)  # Cache for 30 minutes
     def find_duplicate_documents(session: Session, file_hash: str) -> List[Document]:
         """Find documents with the same hash"""
         if not file_hash:
@@ -300,6 +299,66 @@ class DocumentService:
         except Exception as e:
             logger.error(f"Error setting document storage flag: {e}")
             return False
+
+    @staticmethod
+    def delete_document(session: Session, document_id: str, user_id: str) -> bool:
+        """Delete document (with user verification)"""
+        try:
+            # First verify the document exists and belongs to the user
+            document = session.query(Document).filter(
+                and_(Document.id == document_id, Document.user_id == user_id)
+            ).first()
+            
+            if not document:
+                logger.warning(f"Attempt to delete non-existent document {document_id} by user {user_id}")
+                return False
+            
+            # Log the deletion attempt
+            logger.info(f"Deleting document {document_id} for user {user_id}")
+            
+            # Delete the document
+            session.delete(document)
+            session.flush()
+            
+            logger.info(f"Successfully deleted document: {document_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting document {document_id}: {e}")
+            return False
+    
+    @staticmethod
+    @cache_database_query(table="documents", ttl=600)  # Cache for 10 minutes
+    def search_user_documents(
+        session: Session, 
+        user_id: str,
+        search_term: str = None,
+        page: int = 1, 
+        page_size: int = 10
+    ) -> Tuple[List[Document], int]:
+        """Search user's documents with pagination"""
+        try:
+            offset = (page - 1) * page_size
+            
+            query = session.query(Document).filter(Document.user_id == user_id)
+            
+            # Apply search filter if provided
+            if search_term:
+                search_filter = or_(
+                    Document.original_filename.contains(search_term),
+                )
+                query = query.filter(search_filter)
+            
+            total_count = query.count()
+            
+            documents = query.order_by(desc(Document.upload_timestamp))\
+                           .offset(offset)\
+                           .limit(page_size)\
+                           .all()
+            
+            return documents, total_count
+        except Exception as e:
+            logger.error(f"Error searching user documents: {e}")
+            return [], 0
 
 class AnalysisService:
     """Service for analysis operations"""
@@ -373,6 +432,24 @@ class AnalysisService:
                     analysis.processing_time_seconds = processing_time
                 
                 session.flush()
+                
+                # Generate and save report automatically
+                try:
+                    # Import here to avoid circular imports
+                    from main import save_analysis_report
+                    
+                    # Get the document associated with this analysis
+                    document = session.query(Document).filter(Document.id == analysis.document_id).first()
+                    
+                    # Generate and save the report
+                    report_path = save_analysis_report(analysis, document)
+                    if report_path:
+                        logger.info(f"Automatically generated and saved report: {report_path}")
+                    else:
+                        logger.warning(f"Failed to automatically generate report for analysis: {analysis_id}")
+                except Exception as report_error:
+                    logger.error(f"Error generating automatic report for analysis {analysis_id}: {report_error}")
+                
                 logger.info(f"Completed analysis: {analysis_id}")
                 return True
             return False
@@ -470,6 +547,7 @@ class AnalysisService:
             return False
     
     @staticmethod
+    @cache_result(prefix="analysis_stats", ttl=600)  # Cache for 10 minutes
     def get_analysis_statistics(session: Session, user_id: str = None) -> dict:
         """Get analysis statistics"""
         try:
@@ -529,6 +607,7 @@ class AnalysisHistoryService:
             raise
     
     @staticmethod
+    @cache_database_query(table="analysis_history", ttl=600)  # Cache for 10 minutes
     def get_analysis_history(
         session: Session,
         analysis_id: str,

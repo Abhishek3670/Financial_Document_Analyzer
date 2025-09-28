@@ -27,6 +27,8 @@ from database import init_database, get_db_session, get_database_manager
 from services import UserService, DocumentService, AnalysisService, AnalysisHistoryService
 from models import (
     User,
+    Document,
+    Analysis,
     AnalysisResponse, DocumentResponse, AnalysisHistoryResponse,
     CreateAnalysisRequest, AnalysisStatusResponse,
     # Authentication models
@@ -38,9 +40,12 @@ from models import (
 # Authentication imports
 from auth import auth_service
 from auth_middleware import (
-    get_current_user, get_current_active_user, get_current_verified_user,
+    get_current_user, get_current_active_user,
     get_optional_user, get_user_or_session
 )
+
+# Import Redis cache
+from redis_cache import cache_result, cache_llm_result, cache_analysis_result
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -73,7 +78,11 @@ app.add_middleware(
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 ALLOWED_EXTENSIONS = {'.pdf'}
 UPLOAD_DIR = "data"
+OUTPUT_DIR = "output"
 KEEP_UPLOADED_FILES = os.getenv('KEEP_UPLOADED_FILES', 'false').lower() == 'true'
+
+# Create output directory if it doesn't exist
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def get_client_info(request: Request) -> dict:
     """Extract client information from request"""
@@ -136,6 +145,7 @@ def validate_file(file: UploadFile) -> tuple[bool, str]:
         logger.error(f"Error validating file: {e}")
         return False, f"File validation error: {str(e)}"
 
+@cache_analysis_result(ttl=14400)  # Cache for 4 hours
 def run_crew(query: str, file_path: str) -> str:
     """Run the CrewAI crew for financial analysis"""
     try:
@@ -219,6 +229,7 @@ We apologize for the inconvenience. Please contact support if this issue continu
                 detail=f"Analysis processing error: {str(e)}"
             )
 
+@cache_analysis_result(ttl=14400)  # Cache for 4 hours
 def generate_fallback_analysis(pdf_content: str, query: str) -> str:
     """Generate a basic fallback analysis when CrewAI fails"""
     import re
@@ -293,7 +304,7 @@ Based on the document content:
 
     return analysis
 
-
+@cache_analysis_result(ttl=14400)  # Cache for 4 hours
 def run_enhanced_multi_agent_crew(query: str, file_path: str) -> str:
     """Run the enhanced CrewAI crew with specialized agents for comprehensive financial analysis"""
     try:
@@ -512,7 +523,6 @@ async def update_user_profile(
                     detail="Email already taken"
                 )
             user.email = profile_update.email
-            user.is_verified = False  # Require re-verification
         
         session.commit()
         
@@ -525,7 +535,6 @@ async def update_user_profile(
             last_name=user.last_name,
             full_name=user.full_name,
             is_active=user.is_active,
-            is_verified=user.is_verified,
             created_at=user.created_at,
             last_activity=user.last_activity,
             last_login=user.last_login
@@ -976,18 +985,50 @@ async def get_analysis_history(
         # Convert to response format
         analysis_responses = []
         for analysis in analyses:
-            # Get document info
-            document = DocumentService.get_document_by_id(session, analysis.document_id)
-            document_info = DocumentResponse.from_orm(document) if document else None
-            
-            analysis_resp = AnalysisResponse.from_orm(analysis)
-            analysis_resp.document = document_info
-            analysis_responses.append(analysis_resp)
+            try:
+                # Get document info - make sure we're working with objects attached to the session
+                # If analysis was retrieved from cache, it might be detached, so we re-fetch it to ensure it's attached
+                if analysis not in session:
+                    # Re-fetch analysis to ensure it's attached to session
+                    analysis = session.query(Analysis).filter(Analysis.id == analysis.id).first()
+                
+                # Get document info - make sure document is also attached to session
+                document = DocumentService.get_document_by_id(session, analysis.document_id)
+                if not document or document not in session:
+                    # Re-fetch document to ensure it's attached to session
+                    document = session.query(Document).filter(Document.id == analysis.document_id).first()
+                
+                document_info = DocumentResponse.from_orm(document) if document else None
+                
+                # Create a dictionary representation instead of using from_orm to avoid issues
+                analysis_dict = {
+                    "id": analysis.id,
+                    "user_id": analysis.user_id,
+                    "document_id": analysis.document_id,
+                    "original_filename": document.original_filename if document else None,
+                    "query": analysis.query or "",
+                    "analysis_type": analysis.analysis_type or "comprehensive",
+                    "result": analysis.result or "",
+                    "summary": analysis.summary,
+                    "started_at": analysis.started_at.isoformat() if analysis.started_at else None,
+                    "completed_at": analysis.completed_at.isoformat() if analysis.completed_at else None,
+                    "processing_time_seconds": analysis.processing_time_seconds,
+                    "status": analysis.status,
+                    "confidence_score": analysis.confidence_score,
+                    "key_insights_count": analysis.key_insights_count,
+                    "document": document_info.dict() if document_info else None
+                }
+                
+                analysis_responses.append(analysis_dict)
+            except Exception as analysis_error:
+                logger.error(f"Error processing analysis {analysis.id}: {analysis_error}")
+                # Continue with other analyses even if one fails
+                continue
         
         has_more = (page * page_size) < total_count
         
         return {
-            "analyses": [resp.dict() for resp in analysis_responses],
+            "analyses": analysis_responses,
             "pagination": {
                 "page": page,
                 "page_size": page_size,
@@ -1017,8 +1058,20 @@ async def get_analysis_by_id(
         if not analysis:
             raise HTTPException(status_code=404, detail="Analysis not found")
         
-        # Get document info
+        # Get document info - we need to make sure we're working with objects attached to the session
+        # If analysis was retrieved from cache, it might be detached, so we re-fetch it to ensure it's attached
+        if analysis not in session:
+            # Re-fetch analysis to ensure it's attached to session
+            analysis = session.query(Analysis).filter(Analysis.id == analysis_id).first()
+            if not analysis:
+                raise HTTPException(status_code=404, detail="Analysis not found")
+        
+        # Get document info - make sure document is also attached to session
         document = DocumentService.get_document_by_id(session, analysis.document_id)
+        if not document or document not in session:
+            # Re-fetch document to ensure it's attached to session
+            document = session.query(Document).filter(Document.id == analysis.document_id).first()
+        
         document_info = DocumentResponse.from_orm(document) if document else None
         
         # Log the view action
@@ -1081,6 +1134,81 @@ async def get_user_documents(
     except Exception as e:
         logger.error(f"Error getting user documents: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/documents/search", response_model=dict)
+async def search_user_documents(
+    request: Request,
+    search_term: str = None,
+    page: int = 1,
+    page_size: int = 10,
+    session: Session = Depends(get_db_session)
+):
+    """Search user's uploaded documents"""
+    try:
+        user_id = get_or_create_user(session, request)
+        
+        documents, total_count = DocumentService.search_user_documents(
+            session=session,
+            user_id=user_id,
+            search_term=search_term,
+            page=page,
+            page_size=page_size
+        )
+        
+        document_responses = [DocumentResponse.from_orm(doc) for doc in documents]
+        has_more = (page * page_size) < total_count
+        
+        return {
+            "documents": [resp.dict() for resp in document_responses],
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total_count": total_count,
+                "has_more": has_more,
+                "total_pages": (total_count + page_size - 1) // page_size
+            },
+            "search_term": search_term
+        }
+        
+    except Exception as e:
+        logger.error(f"Error searching user documents: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/documents/{document_id}")
+async def delete_document(
+    document_id: str,
+    request: Request,
+    session: Session = Depends(get_db_session)
+):
+    """Delete a specific document"""
+    try:
+        user_id = get_or_create_user(session, request)
+        
+        # Check if document exists and belongs to user
+        document = DocumentService.get_document_by_id(session, document_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        if document.user_id != user_id:
+            raise HTTPException(status_code=403, detail="Not authorized to delete this document")
+        
+        # Delete the document
+        success = DocumentService.delete_document(session, document_id, user_id)
+        
+        if success:
+            session.commit()
+            return {"message": "Document deleted successfully", "document_id": document_id}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to delete document")
+            
+    except HTTPException:
+        # Re-raise HTTP exceptions to preserve status codes
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting document {document_id}: {e}")
+        # Rollback any changes in case of error
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")
 
 @app.delete("/analysis/{analysis_id}")
 async def delete_analysis(
@@ -1238,42 +1366,63 @@ async def export_analysis_report(
 ):
     """Export analysis report in various formats"""
     try:
-        # Get the analysis
-        analysis = AnalysisService.get_analysis(session, analysis_id)
+        # Get the analysis with the related document using a join to ensure document is loaded
+        analysis = session.query(Analysis)\
+                         .filter(Analysis.id == analysis_id)\
+                         .first()
+        
         if not analysis:
             raise HTTPException(status_code=404, detail="Analysis not found")
         
+        # Check if analysis object is valid
+        if not hasattr(analysis, 'id'):
+            raise HTTPException(status_code=500, detail="Invalid analysis object retrieved from database")
+        
         # Check if user has access to this analysis
         if analysis.user_id != current_user.id:
-            raise HTTPException(status_code=403, detail="Access denied")
+            raise HTTPException(status_code=403, detail="Access denied. You do not have permission to download this report.")
+        
+        # Get the document associated with this analysis
+        document = session.query(Document)\
+                         .filter(Document.id == analysis.document_id)\
+                         .first()
         
         # Generate report content
-        report_html = generate_analysis_report_html(analysis)
+        report_html = generate_analysis_report_html(analysis, document)
         
         if format == "html":
             response = Response(
                 content=report_html,
                 media_type="text/html",
                 headers={
-                    "Content-Disposition": f"attachment; filename=analysis_report_{analysis_id}.html"
+                    "Content-Disposition": f"attachment; filename*=UTF-8''analysis_report_{analysis_id}.html"
                 }
             )
             return response
         else:
-            raise HTTPException(status_code=400, detail="Unsupported format")
+            raise HTTPException(status_code=400, detail="Unsupported format. Only HTML format is supported.")
             
+    except HTTPException:
+        # Re-raise HTTP exceptions to preserve status codes and messages
+        raise
     except Exception as e:
-        logger.error(f"Error exporting analysis {analysis_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error exporting analysis {analysis_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate report. Please try again later.")
 
-def generate_analysis_report_html(analysis) -> str:
+def generate_analysis_report_html(analysis, document=None) -> str:
     """Generate HTML report for analysis"""
-    
-    # Format the analysis result for display
-    result_content = html.escape(str(analysis.result))
-    
-    html_template = f"""
-    <!DOCTYPE html>
+    try:
+        # Format the analysis result for display
+        result_content = html.escape(str(analysis.result)) if analysis and analysis.result else "No analysis results available."
+        
+        # Get the original filename from the related document
+        original_filename = document.original_filename if document and document.original_filename else "Unknown Document"
+        
+        # Format the created date
+        created_at_str = analysis.started_at.strftime('%Y-%m-%d %H:%M:%S UTC') if analysis and analysis.started_at else "Unknown Date"
+        
+        html_template = f"""
+        <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
@@ -1366,16 +1515,16 @@ def generate_analysis_report_html(analysis) -> str:
                 <div class="meta-info">
                     <div class="meta-row">
                         <span class="meta-label">Document:</span>
-                        <span>{html.escape(analysis.original_filename or 'N/A')}</span>
+                        <span>{html.escape(original_filename)}</span>
                     </div>
                     <div class="meta-row">
                         <span class="meta-label">Analysis Date:</span>
-                        <span>{analysis.created_at.strftime('%Y-%m-%d %H:%M:%S UTC')}</span>
+                        <span>{created_at_str}</span>
                     </div>
                     <div class="meta-row">
                         <span class="meta-label">Status:</span>
                         <span style="color: {'green' if analysis.status == 'completed' else 'orange'};">
-                            {analysis.status.title()}
+                            {analysis.status.title() if analysis.status else 'Unknown'}
                         </span>
                     </div>
                     <div class="meta-row">
@@ -1401,7 +1550,44 @@ def generate_analysis_report_html(analysis) -> str:
     </html>
     """
     
-    return html_template
+        return html_template
+    except Exception as e:
+        logger.error(f"Error generating HTML report: {e}", exc_info=True)
+        # Return a simple error report
+        error_template = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Error Generating Report</title>
+        </head>
+        <body>
+            <h1>Error Generating Report</h1>
+            <p>An error occurred while generating the report: {str(e)}</p>
+            <p>Please try again later.</p>
+        </body>
+        </html>
+        """
+        return error_template
+
+def save_analysis_report(analysis, document=None) -> str:
+    """Generate and save HTML report to output folder"""
+    try:
+        # Generate the report content
+        report_html = generate_analysis_report_html(analysis, document)
+        
+        # Create filename
+        filename = f"analysis_report_{analysis.id}.html"
+        filepath = os.path.join(OUTPUT_DIR, filename)
+        
+        # Save to file
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(report_html)
+        
+        logger.info(f"Saved analysis report to: {filepath}")
+        return filepath
+    except Exception as e:
+        logger.error(f"Error saving analysis report: {e}", exc_info=True)
+        return None
 
 if __name__ == "__main__":
     import uvicorn
