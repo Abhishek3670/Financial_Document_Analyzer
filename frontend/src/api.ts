@@ -493,6 +493,26 @@ export const documentAPI = {
   },
 
   // Export analysis report
+  exportAnalysisReport: async (analysisId: string, format: string = 'html'): Promise<Blob> => {
+    console.log('Attempting to export analysis:', analysisId, 'format:', format);
+    try {
+      const response = await api.get(`/analysis/${analysisId}/export`, {
+        params: { format },
+        responseType: 'blob'
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Export analysis error:', error);
+      // Check if it's an authentication error
+      if (error.response?.status === 401) {
+        // Clear local auth data and redirect to login
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user_data');
+        window.location.href = '/login';
+      }
+      throw error;
+    }
+  },
 
   // Download analysis report
   downloadAnalysisReport: async (analysisId: string, filename?: string, format: string = 'html'): Promise<void> => {
@@ -506,23 +526,47 @@ export const documentAPI = {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Download analysis error:', error);
-      throw error;
-    }
-  },
-
-  exportAnalysisReport: async (analysisId: string, format: string = 'html'): Promise<Blob> => {
-    console.log('Attempting to export analysis:', analysisId, 'format:', format);
-    try {
-      const response = await api.get(`/analysis/${analysisId}/export`, {
-        params: { format },
-        responseType: 'blob'
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Export analysis error:', error);
-      throw error;
+      // Provide a more user-friendly error message
+      let errorMessage = 'Failed to download report. Please try again later.';
+      
+      if (error.response?.status === 401) {
+        errorMessage = 'Authentication required. Please log in again.';
+      } else if (error.response?.status === 403) {
+        errorMessage = 'Access denied. You do not have permission to download this report.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Report not found.';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // If we have response data, try to parse it as JSON to get the detail message
+      if (error.response?.data) {
+        try {
+          // For blob responses, we need to read the blob as text first
+          if (error.response.data instanceof Blob) {
+            const text = await error.response.data.text();
+            try {
+              const errorObj = JSON.parse(text);
+              if (errorObj.detail) {
+                errorMessage = errorObj.detail;
+              }
+            } catch (parseError) {
+              // If parsing fails, use the raw text if it's not empty
+              if (text.trim()) {
+                errorMessage = text.trim();
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing error response:', e);
+        }
+      }
+      
+      throw new Error(errorMessage);
     }
   },
 

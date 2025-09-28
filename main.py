@@ -28,6 +28,7 @@ from services import UserService, DocumentService, AnalysisService, AnalysisHist
 from models import (
     User,
     Document,
+    Analysis,
     AnalysisResponse, DocumentResponse, AnalysisHistoryResponse,
     CreateAnalysisRequest, AnalysisStatusResponse,
     # Authentication models
@@ -1361,42 +1362,63 @@ async def export_analysis_report(
 ):
     """Export analysis report in various formats"""
     try:
-        # Get the analysis
-        analysis = AnalysisService.get_analysis(session, analysis_id)
+        # Get the analysis with the related document using a join to ensure document is loaded
+        analysis = session.query(Analysis)\
+                         .filter(Analysis.id == analysis_id)\
+                         .first()
+        
         if not analysis:
             raise HTTPException(status_code=404, detail="Analysis not found")
         
+        # Check if analysis object is valid
+        if not hasattr(analysis, 'id'):
+            raise HTTPException(status_code=500, detail="Invalid analysis object retrieved from database")
+        
         # Check if user has access to this analysis
         if analysis.user_id != current_user.id:
-            raise HTTPException(status_code=403, detail="Access denied")
+            raise HTTPException(status_code=403, detail="Access denied. You do not have permission to download this report.")
+        
+        # Get the document associated with this analysis
+        document = session.query(Document)\
+                         .filter(Document.id == analysis.document_id)\
+                         .first()
         
         # Generate report content
-        report_html = generate_analysis_report_html(analysis)
+        report_html = generate_analysis_report_html(analysis, document)
         
         if format == "html":
             response = Response(
                 content=report_html,
                 media_type="text/html",
                 headers={
-                    "Content-Disposition": f"attachment; filename=analysis_report_{analysis_id}.html"
+                    "Content-Disposition": f"attachment; filename*=UTF-8''analysis_report_{analysis_id}.html"
                 }
             )
             return response
         else:
-            raise HTTPException(status_code=400, detail="Unsupported format")
+            raise HTTPException(status_code=400, detail="Unsupported format. Only HTML format is supported.")
             
+    except HTTPException:
+        # Re-raise HTTP exceptions to preserve status codes and messages
+        raise
     except Exception as e:
-        logger.error(f"Error exporting analysis {analysis_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error exporting analysis {analysis_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate report. Please try again later.")
 
-def generate_analysis_report_html(analysis) -> str:
+def generate_analysis_report_html(analysis, document=None) -> str:
     """Generate HTML report for analysis"""
-    
-    # Format the analysis result for display
-    result_content = html.escape(str(analysis.result))
-    
-    html_template = f"""
-    <!DOCTYPE html>
+    try:
+        # Format the analysis result for display
+        result_content = html.escape(str(analysis.result)) if analysis and analysis.result else "No analysis results available."
+        
+        # Get the original filename from the related document
+        original_filename = document.original_filename if document and document.original_filename else "Unknown Document"
+        
+        # Format the created date
+        created_at_str = analysis.started_at.strftime('%Y-%m-%d %H:%M:%S UTC') if analysis and analysis.started_at else "Unknown Date"
+        
+        html_template = f"""
+        <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
@@ -1489,16 +1511,16 @@ def generate_analysis_report_html(analysis) -> str:
                 <div class="meta-info">
                     <div class="meta-row">
                         <span class="meta-label">Document:</span>
-                        <span>{html.escape(analysis.original_filename or 'N/A')}</span>
+                        <span>{html.escape(original_filename)}</span>
                     </div>
                     <div class="meta-row">
                         <span class="meta-label">Analysis Date:</span>
-                        <span>{analysis.created_at.strftime('%Y-%m-%d %H:%M:%S UTC')}</span>
+                        <span>{created_at_str}</span>
                     </div>
                     <div class="meta-row">
                         <span class="meta-label">Status:</span>
                         <span style="color: {'green' if analysis.status == 'completed' else 'orange'};">
-                            {analysis.status.title()}
+                            {analysis.status.title() if analysis.status else 'Unknown'}
                         </span>
                     </div>
                     <div class="meta-row">
@@ -1524,7 +1546,24 @@ def generate_analysis_report_html(analysis) -> str:
     </html>
     """
     
-    return html_template
+        return html_template
+    except Exception as e:
+        logger.error(f"Error generating HTML report: {e}", exc_info=True)
+        # Return a simple error report
+        error_template = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Error Generating Report</title>
+        </head>
+        <body>
+            <h1>Error Generating Report</h1>
+            <p>An error occurred while generating the report: {str(e)}</p>
+            <p>Please try again later.</p>
+        </body>
+        </html>
+        """
+        return error_template
 
 if __name__ == "__main__":
     import uvicorn
