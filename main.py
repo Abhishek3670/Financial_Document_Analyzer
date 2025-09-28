@@ -78,7 +78,11 @@ app.add_middleware(
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 ALLOWED_EXTENSIONS = {'.pdf'}
 UPLOAD_DIR = "data"
+OUTPUT_DIR = "output"
 KEEP_UPLOADED_FILES = os.getenv('KEEP_UPLOADED_FILES', 'false').lower() == 'true'
+
+# Create output directory if it doesn't exist
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def get_client_info(request: Request) -> dict:
     """Extract client information from request"""
@@ -1564,6 +1568,26 @@ def generate_analysis_report_html(analysis, document=None) -> str:
         </html>
         """
         return error_template
+
+def save_analysis_report(analysis, document=None) -> str:
+    """Generate and save HTML report to output folder"""
+    try:
+        # Generate the report content
+        report_html = generate_analysis_report_html(analysis, document)
+        
+        # Create filename
+        filename = f"analysis_report_{analysis.id}.html"
+        filepath = os.path.join(OUTPUT_DIR, filename)
+        
+        # Save to file
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(report_html)
+        
+        logger.info(f"Saved analysis report to: {filepath}")
+        return filepath
+    except Exception as e:
+        logger.error(f"Error saving analysis report: {e}", exc_info=True)
+        return None
 
 if __name__ == "__main__":
     import uvicorn

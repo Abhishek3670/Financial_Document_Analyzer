@@ -6,9 +6,13 @@ import os
 import hashlib
 import logging
 from datetime import datetime, timedelta
-from typing import List, Optional, Tuple
+from typing import List, Tuple, Optional
+
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func
+from datetime import datetime, timedelta
+import logging
+from typing import List, Tuple, Optional
 
 from models import User, Document, Analysis, AnalysisHistory
 from models import DocumentResponse, AnalysisResponse, AnalysisHistoryResponse
@@ -428,6 +432,24 @@ class AnalysisService:
                     analysis.processing_time_seconds = processing_time
                 
                 session.flush()
+                
+                # Generate and save report automatically
+                try:
+                    # Import here to avoid circular imports
+                    from main import save_analysis_report
+                    
+                    # Get the document associated with this analysis
+                    document = session.query(Document).filter(Document.id == analysis.document_id).first()
+                    
+                    # Generate and save the report
+                    report_path = save_analysis_report(analysis, document)
+                    if report_path:
+                        logger.info(f"Automatically generated and saved report: {report_path}")
+                    else:
+                        logger.warning(f"Failed to automatically generate report for analysis: {analysis_id}")
+                except Exception as report_error:
+                    logger.error(f"Error generating automatic report for analysis {analysis_id}: {report_error}")
+                
                 logger.info(f"Completed analysis: {analysis_id}")
                 return True
             return False
