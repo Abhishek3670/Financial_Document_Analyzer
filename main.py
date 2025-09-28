@@ -1130,6 +1130,81 @@ async def get_user_documents(
         logger.error(f"Error getting user documents: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/documents/search", response_model=dict)
+async def search_user_documents(
+    request: Request,
+    search_term: str = None,
+    page: int = 1,
+    page_size: int = 10,
+    session: Session = Depends(get_db_session)
+):
+    """Search user's uploaded documents"""
+    try:
+        user_id = get_or_create_user(session, request)
+        
+        documents, total_count = DocumentService.search_user_documents(
+            session=session,
+            user_id=user_id,
+            search_term=search_term,
+            page=page,
+            page_size=page_size
+        )
+        
+        document_responses = [DocumentResponse.from_orm(doc) for doc in documents]
+        has_more = (page * page_size) < total_count
+        
+        return {
+            "documents": [resp.dict() for resp in document_responses],
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total_count": total_count,
+                "has_more": has_more,
+                "total_pages": (total_count + page_size - 1) // page_size
+            },
+            "search_term": search_term
+        }
+        
+    except Exception as e:
+        logger.error(f"Error searching user documents: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/documents/{document_id}")
+async def delete_document(
+    document_id: str,
+    request: Request,
+    session: Session = Depends(get_db_session)
+):
+    """Delete a specific document"""
+    try:
+        user_id = get_or_create_user(session, request)
+        
+        # Check if document exists and belongs to user
+        document = DocumentService.get_document_by_id(session, document_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        if document.user_id != user_id:
+            raise HTTPException(status_code=403, detail="Not authorized to delete this document")
+        
+        # Delete the document
+        success = DocumentService.delete_document(session, document_id, user_id)
+        
+        if success:
+            session.commit()
+            return {"message": "Document deleted successfully", "document_id": document_id}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to delete document")
+            
+    except HTTPException:
+        # Re-raise HTTP exceptions to preserve status codes
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting document {document_id}: {e}")
+        # Rollback any changes in case of error
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")
+
 @app.delete("/analysis/{analysis_id}")
 async def delete_analysis(
     analysis_id: str,

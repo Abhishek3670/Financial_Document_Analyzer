@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import FileUpload from './components/FileUpload';
 import AnalysisResults from './components/AnalysisResults';
 import AnalysisHistory from './components/AnalysisHistory';
+import Documents from './components/Documents';
 import Header from './components/Header';
 import Navigation, { NavigationTab } from './components/Navigation';
 import { AnalysisResponse, AnalysisHistoryItem } from './types';
@@ -146,6 +147,13 @@ function App() {
             <AnalysisHistory 
               onViewAnalysis={handleViewAnalysis}
             />
+          </div>
+        );
+      
+      case 'documents':
+        return (
+          <div className="space-y-6">
+            <Documents />
           </div>
         );
       

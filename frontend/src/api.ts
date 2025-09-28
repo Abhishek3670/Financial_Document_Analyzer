@@ -112,6 +112,12 @@ export interface Document {
   upload_date: string;
   status: 'pending' | 'processing' | 'completed' | 'error';
   is_processed: boolean;
+  upload_timestamp: string;
+  stored_filename?: string;
+  file_path?: string;
+  mime_type?: string;
+  file_hash?: string;
+  is_stored_permanently?: boolean;
 }
 
 export interface Analysis {
@@ -431,6 +437,43 @@ export const documentAPI = {
       return response.data;
     } catch (error: any) {
       const message = error.response?.data?.detail || 'Failed to get documents';
+      throw new Error(message);
+    }
+  },
+
+  searchDocuments: async (
+    searchTerm: string = '',
+    page: number = 1,
+    pageSize: number = 10
+  ): Promise<{
+    documents: Document[];
+    pagination: {
+      page: number;
+      page_size: number;
+      total_count: number;
+      has_more: boolean;
+      total_pages: number;
+    };
+    search_term: string;
+  }> => {
+    try {
+      const response = await api.get('/documents/search', {
+        params: { search_term: searchTerm, page, page_size: pageSize },
+      });
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Failed to search documents';
+      throw new Error(message);
+    }
+  },
+
+  deleteDocument: async (documentId: string): Promise<{ message: string }> => {
+    try {
+      const response = await api.delete(`/documents/${documentId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Delete document error:', error);
+      const message = error.response?.data?.detail || error.message || 'Failed to delete document';
       throw new Error(message);
     }
   },

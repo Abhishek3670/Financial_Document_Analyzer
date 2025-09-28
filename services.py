@@ -296,6 +296,66 @@ class DocumentService:
             logger.error(f"Error setting document storage flag: {e}")
             return False
 
+    @staticmethod
+    def delete_document(session: Session, document_id: str, user_id: str) -> bool:
+        """Delete document (with user verification)"""
+        try:
+            # First verify the document exists and belongs to the user
+            document = session.query(Document).filter(
+                and_(Document.id == document_id, Document.user_id == user_id)
+            ).first()
+            
+            if not document:
+                logger.warning(f"Attempt to delete non-existent document {document_id} by user {user_id}")
+                return False
+            
+            # Log the deletion attempt
+            logger.info(f"Deleting document {document_id} for user {user_id}")
+            
+            # Delete the document
+            session.delete(document)
+            session.flush()
+            
+            logger.info(f"Successfully deleted document: {document_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting document {document_id}: {e}")
+            return False
+    
+    @staticmethod
+    @cache_database_query(table="documents", ttl=600)  # Cache for 10 minutes
+    def search_user_documents(
+        session: Session, 
+        user_id: str,
+        search_term: str = None,
+        page: int = 1, 
+        page_size: int = 10
+    ) -> Tuple[List[Document], int]:
+        """Search user's documents with pagination"""
+        try:
+            offset = (page - 1) * page_size
+            
+            query = session.query(Document).filter(Document.user_id == user_id)
+            
+            # Apply search filter if provided
+            if search_term:
+                search_filter = or_(
+                    Document.original_filename.contains(search_term),
+                )
+                query = query.filter(search_filter)
+            
+            total_count = query.count()
+            
+            documents = query.order_by(desc(Document.upload_timestamp))\
+                           .offset(offset)\
+                           .limit(page_size)\
+                           .all()
+            
+            return documents, total_count
+        except Exception as e:
+            logger.error(f"Error searching user documents: {e}")
+            return [], 0
+
 class AnalysisService:
     """Service for analysis operations"""
     
