@@ -4,21 +4,21 @@
 
 The Financial Document Analyzer project has the following key requirements:
 
-### Primary Objectives (Mandatory)
+### Primary Objectives (MANDATORY)
 1. **Debug & Fix All Issues**: Find and resolve every bug in the codebase
 2. **Performance Optimization**: Identify and fix all inefficient code patterns
-3. **Production Readiness**: Make the system enterprise-ready with working frontend and backend
+3. **Production Readiness**: Make the system enterprise-ready with working frontend and backend.
 
-### Advanced Complexity Requirements (Expected)
+### Advanced Complexity Requirements (EXPECTED)
 
-#### Security & Authentication
+#### **Security & Authentication**
 - Implement JWT-based authentication system
 - Add role-based access control (Admin, Viewer)
 - API rate limiting and request validation
 - Input sanitization and file upload security
 - Secure environment variable management
 
-#### Database Integration
+#### **Database Integration** 
 - Design and implement database schema for:
   - User management and authentication
   - Document storage and metadata
@@ -27,7 +27,7 @@ The Financial Document Analyzer project has the following key requirements:
 - Database connection pooling and optimization
 - You can use any database you want (preferably MongoDB), but you should have a good reason for choosing it.
 
-#### Frontend Integration (Mandatory)
+#### **Frontend Integration (MANDATORY)**
 - Build a complete web application frontend using modern framework (React, Vue.js, or Angular)
 - **Preferred (not mandatory):** TailwindCSS for styling and shadcn/ui components for enhanced UI
 - Real-time file upload with progress indicators
@@ -38,26 +38,28 @@ The Financial Document Analyzer project has the following key requirements:
 - Export functionality with download capabilities
 - Error handling and user feedback systems
 
-#### Performance & Scalability
+#### **Performance & Scalability**
 - Implement Redis caching for frequently accessed data
 - Add background job processing with Redis or Celery or other job queue system
 - Database query optimization and indexing
 - Memory-efficient document processing
 - Async/await patterns throughout the codebase
 
-#### Monitoring & Observability
+#### **Monitoring & Observability**
 - Add LLM Observability Tools to the codebase to monitor the LLM calls and the tools calls.
 
-### Edge Cases & Advanced Scenarios (Critical for Evaluation)
+### Edge Cases & Advanced Scenarios (CRITICAL FOR EVALUATION)
 
-#### Document Processing Edge Cases
+**Think like a senior engineer - what could break this system?**
+
+#### **Document Processing Edge Cases**
 - Corrupted or password-protected PDFs
 - Documents larger than 100MB
 - Non-English financial documents
 - Scanned documents with poor OCR quality
 - Documents with complex tables and charts
 
-#### API & System Edge Cases
+#### **API & System Edge Cases**
 - Concurrent file uploads from multiple users
 - Network timeouts during long analysis processes
 - Memory exhaustion with large documents
@@ -66,26 +68,80 @@ The Financial Document Analyzer project has the following key requirements:
 - Invalid file formats and malicious uploads
 - Extremely long user queries or prompts
 
-#### Frontend & User Experience Edge Cases
+#### **Frontend & User Experience Edge Cases**
 - File upload failures with proper error recovery
 - Large file uploads exceeding browser memory limits
 - Simultaneous document processing and UI responsiveness
 - Cross-origin resource sharing (CORS) issues
 
+## Evaluation Criteria (Weighted Scoring)
+
+### Technical Excellence (30%)
+- **Code quality:** Clean, maintainable, well-documented code (backend & frontend)
+- **Architecture:** Scalable design patterns and system architecture
+- **Functionality:** Complete functionality of the system
+- **Security:** Production-grade security implementation
+
+### Problem-Solving & Debugging (25%)
+- **Bug identification:** Complete discovery of all planted issues
+- **Solution quality:** Elegant, efficient, and maintainable fixes
+- **Edge case handling:** Comprehensive coverage of complex scenarios
+- **Performance optimization:** Measurable improvements in system performance
+- **Prompt engineering:** Use the best prompt engineering practices to get the best results.
+
+### System Design & Innovation (25%)
+- **Database design:** Efficient schema and query optimization
+- **API design:** RESTful principles and comprehensive documentation
+- **Deployment strategy:** Production-ready infrastructure setup
+- **Monitoring & observability:** LLM Observability Tools to monitor the LLM calls and the tools calls.
+
+### Full-Stack Development (15%)
+- **Frontend implementation:** Modern, responsive web application
+- **API integration:** Seamless frontend-backend communication
+- **User experience:** Intuitive design and smooth user workflows
+
+### Presentation & Communication (5%)
+- **Video quality:** Clear demonstration and technical explanation
+- **Documentation:** Comprehensive and professional documentation
+- **Code comments:** Clear explanation of complex logic and decisions
+
+## Expected Features (MINIMUM)
+
+### Backend API Features
+- Upload financial documents (multiple formats)
+- AI-powered financial analysis with confidence scoring
+- Investment recommendations with risk assessment
+- Market insights and trend analysis
+- User authentication and session management
+- Document history and analysis tracking
+- Comprehensive error handling and logging
+- API documentation and testing interface
+- **Python 3.11.x runtime**
+
+### Frontend Application Features
+- Modern, responsive web application (React/Vue/Angular)
+- **Preferred:** TailwindCSS styling with shadcn/ui component library
+- User registration and authentication interface
+- Interactive analysis results dashboard
+- Document management system (view, search, delete)
+- Analysis history with filtering and sorting
+- Export functionality for reports
+- Real-time status updates and progress tracking
+
 ## 2. Current Implementation Status
 
 ### Security & Authentication
-✅ **JWT-based authentication system**: Implemented in [auth.py](file:///home/aatish/wingily/wingily-project/auth.py) with proper token creation, validation, and user session management.
+✅ **JWT-based authentication system**: Implemented in [auth.py](wingily-project/auth.py) with proper token creation, validation, and user session management.
 
 ✅ **User management**: Complete user registration, login, profile management, password reset functionality with enhanced security features.
 
-✅ **File upload security**: File validation with size limits, extension checking, and MIME type verification in [main.py](file:///home/aatish/wingily/wingily-project/main.py).
+✅ **File upload security**: File validation with size limits, extension checking, and MIME type verification in [main.py](wingily-project/main.py).
 
-✅ **Input sanitization**: Query validation and sanitization in [main.py](file:///home/aatish/wingily/wingily-project/main.py).
+✅ **Input sanitization**: Query validation and sanitization in [main.py](wingily-project/main.py).
 
-✅ **Secure environment variable management**: Using python-dotenv for configuration in [agents.py](file:///home/aatish/wingily/wingily-project/agents.py) and other files.
+✅ **Secure environment variable management**: Using python-dotenv for configuration in [agents.py](wingily-project/agents.py) and other files.
 
-✅ **Password security**: Implemented bcrypt hashing for password storage in [auth.py](file:///home/aatish/wingily/wingily-project/auth.py).
+✅ **Password security**: Implemented bcrypt hashing for password storage in [auth.py](wingily-project/auth.py).
 
 ✅ **Account security features**: Failed login attempt tracking, account lockout mechanisms, and password reset functionality.
 
@@ -94,43 +150,43 @@ The Financial Document Analyzer project has the following key requirements:
 ⚠️ **API rate limiting**: Not yet implemented but designed for future addition.
 
 ### Database Integration
-✅ **Comprehensive database schema**: Implemented in [models.py](file:///home/aatish/wingily/wingily-project/models.py) with User, Document, Analysis, and AnalysisHistory tables.
+✅ **Comprehensive database schema**: Implemented in [models.py](wingily-project/models.py) with User, Document, Analysis, and AnalysisHistory tables.
 
-✅ **Database connection management**: Proper session handling with connection pooling in [database.py](file:///home/aatish/wingily/wingily-project/database.py).
+✅ **Database connection management**: Proper session handling with connection pooling in [database.py](wingily-project/database.py).
 
-✅ **Database operations**: Full CRUD operations in [services.py](file:///home/aatish/wingily/wingily-project/services.py).
+✅ **Database operations**: Full CRUD operations in [services.py](wingily-project/services.py).
 
 ✅ **Indexing**: Proper indexing on frequently queried fields.
 
 ✅ **Data relationships**: Well-defined relationships between User, Document, and Analysis entities.
 
-✅ **Database flexibility**: Supports both SQLite (development) and PostgreSQL (production) as shown in [database.py](file:///home/aatish/wingily/wingily-project/database.py) and [DEPLOYMENT_GUIDE.md](file:///home/aatish/wingily/wingily-project/DEPLOYMENT_GUIDE.md).
+✅ **Database flexibility**: Supports both SQLite (development) and PostgreSQL (production) as shown in [database.py](wingily-project/database.py) and [DEPLOYMENT_GUIDE.md](wingily-project/DEPLOYMENT_GUIDE.md).
 
 ### Frontend Integration
-✅ **Complete React web application**: Modern frontend with TypeScript in the [frontend/](file:///home/aatish/wingily/wingily-project/frontend/) directory.
+✅ **Complete React web application**: Modern frontend with TypeScript in the [frontend/](wingily-project/frontend/) directory.
 
-✅ **TailwindCSS styling**: Implemented in [tailwind.config.js](file:///home/aatish/wingily/wingily-project/frontend/tailwind.config.js) and component files.
+✅ **TailwindCSS styling**: Implemented in [tailwind.config.js](wingily-project/frontend/tailwind.config.js) and component files.
 
-✅ **File upload with progress**: Implemented in [FileUpload.tsx](file:///home/aatish/wingily/wingily-project/frontend/src/components/FileUpload.tsx).
+✅ **File upload with progress**: Implemented in [FileUpload.tsx](wingily-project/frontend/src/components/FileUpload.tsx).
 
-✅ **Interactive dashboards**: Analysis results display in [AnalysisResults.tsx](file:///home/aatish/wingily/wingily-project/frontend/src/components/AnalysisResults.tsx).
+✅ **Interactive dashboards**: Analysis results display in [AnalysisResults.tsx](wingily-project/frontend/src/components/AnalysisResults.tsx).
 
-✅ **User authentication**: Complete auth flow in [Auth.tsx](file:///home/aatish/wingily/wingily-project/frontend/src/components/Auth.tsx) and enhanced profile management in [AuthProfileManagement.tsx](file:///home/aatish/wingily/wingily-project/frontend/src/components/AuthProfileManagement.tsx).
+✅ **User authentication**: Complete auth flow in [Auth.tsx](wingily-project/frontend/src/components/Auth.tsx) and enhanced profile management in [AuthProfileManagement.tsx](wingily-project/frontend/src/components/AuthProfileManagement.tsx).
 
-✅ **Document management**: Upload, view, and history interfaces in [Documents.tsx](file:///home/aatish/wingily/wingily-project/frontend/src/components/Documents.tsx).
+✅ **Document management**: Upload, view, and history interfaces in [Documents.tsx](wingily-project/frontend/src/components/Documents.tsx).
 
-✅ **Analysis history**: Implemented in [AnalysisHistory.tsx](file:///home/aatish/wingily/wingily-project/frontend/src/components/AnalysisHistory.tsx).
+✅ **Analysis history**: Implemented in [AnalysisHistory.tsx](wingily-project/frontend/src/components/AnalysisHistory.tsx).
 
-✅ **Export functionality**: Report export in [api.ts](file:///home/aatish/wingily/wingily-project/frontend/src/api.ts).
+✅ **Export functionality**: Report export in [api.ts](wingily-project/frontend/src/api.ts).
 
 ✅ **Error handling**: Toast notifications and error boundaries.
 
 ✅ **Enhanced UI components**: Comprehensive profile management dashboard with security features, password management, and notification settings.
 
 ### Performance & Scalability
-✅ **Redis caching**: Implemented in [redis_cache.py](file:///home/aatish/wingily/wingily-project/redis_cache.py) with decorators for caching LLM results, analysis results, and database queries.
+✅ **Redis caching**: Implemented in [redis_cache.py](wingily-project/redis_cache.py) with decorators for caching LLM results, analysis results, and database queries.
 
-✅ **Background job processing**: Async processing with ThreadPoolExecutor in [main.py](file:///home/aatish/wingily/wingily-project/main.py).
+✅ **Background job processing**: Async processing with ThreadPoolExecutor in [main.py](wingily-project/main.py).
 
 ✅ **Database optimization**: Proper indexing and query optimization.
 
@@ -143,20 +199,20 @@ The Financial Document Analyzer project has the following key requirements:
 ⚠️ **Distributed task queue**: Currently using ThreadPoolExecutor rather than a full message queue system like Celery. Ready for enhancement.
 
 ### Monitoring & Observability
-✅ **LLM Observability**: Implemented in [llm_observability.py](file:///home/aatish/wingily/wingily-project/llm_observability.py) and [agents_with_observability.py](file:///home/aatish/wingily/wingily-project/agents_with_observability.py).
+✅ **LLM Observability**: Implemented in [llm_observability.py](wingily-project/llm_observability.py) and [agents_with_observability.py](wingily-project/agents_with_observability.py).
 
 ✅ **OpenTelemetry integration**: For distributed tracing and metrics.
 
-✅ **Cache monitoring**: Redis cache statistics and metrics in [redis_cache.py](file:///home/aatish/wingily/wingily-project/redis_cache.py).
+✅ **Cache monitoring**: Redis cache statistics and metrics in [redis_cache.py](wingily-project/redis_cache.py).
 
-✅ **System health checks**: Comprehensive health check endpoints in [main.py](file:///home/aatish/wingily/wingily-project/main.py).
+✅ **System health checks**: Comprehensive health check endpoints in [main.py](wingily-project/main.py).
 
 ### Edge Cases Handling
 ✅ **File validation**: Size limits, extension checking, MIME type verification.
 
 ✅ **Error handling**: Comprehensive try/catch blocks and HTTP exception handling.
 
-✅ **Timeout handling**: Background task timeouts in [main.py](file:///home/aatish/wingily/wingily-project/main.py).
+✅ **Timeout handling**: Background task timeouts in [main.py](wingily-project/main.py).
 
 ✅ **Memory management**: File size limits and processing constraints.
 
@@ -314,4 +370,4 @@ The project has successfully transformed from a basic document analysis tool int
 
 As highlighted in the README's critical warning that "every single line of code in this repository contains bugs, inefficiencies, or poor practices," the current implementation represents a significant improvement over the original codebase. Most of the identified issues have been addressed, and the remaining items are clearly documented for future enhancement.
 
-The system now provides a complete end-to-end solution for financial document analysis with a modern web interface, robust backend services, and comprehensive security and performance features. It is ready for production deployment with the proper infrastructure as outlined in the [DEPLOYMENT_GUIDE.md](file:///home/aatish/wingily/wingily-project/DEPLOYMENT_GUIDE.md).
+The system now provides a complete end-to-end solution for financial document analysis with a modern web interface, robust backend services, and comprehensive security and performance features. It is ready for production deployment with the proper infrastructure as outlined in the [DEPLOYMENT_GUIDE.md](wingily-project/DEPLOYMENT_GUIDE.md).

@@ -5,31 +5,36 @@ load_dotenv()
 
 from crewai import Agent, LLM
 from tools import search_tool, financial_document_tool, investment_analysis_tool, risk_assessment_tool
+from llm_observability import track_crewai_call, llm_observability
 
-### Enhanced LLM configuration for NVIDIA NIM
-try:
-    # Try NVIDIA NIM configuration first
-    llm = LLM(
-        model="nvidia_nim/meta/llama-3.1-405b-instruct",  # Updated model path
-        base_url="https://integrate.api.nvidia.com/v1",
-        api_key=os.getenv("NVIDIA_NIM_API_KEY"),
-        temperature=0.1,  # Lower for more consistent financial analysis
-    )
-    print("✅ NVIDIA NIM LLM configured successfully")
-except Exception as e:
-    print(f"⚠️ NVIDIA NIM configuration issue: {e}")
-    # Fallback to OpenAI compatible configuration
+def create_enhanced_llm():
     try:
+        # Try NVIDIA NIM configuration first
         llm = LLM(
-            model="gpt-3.5-turbo",  # Fallback model
-            api_key=os.getenv("OPENAI_API_KEY"),
-            temperature=0.2,
+            model="nvidia_nim/meta/llama-3.1-405b-instruct",
+            base_url="https://integrate.api.nvidia.com/v1",
+            api_key=os.getenv("NVIDIA_NIM_API_KEY"),
+            temperature=0.1,
         )
-        print("✅ Fallback LLM configured")
-    except Exception as e2:
-        print(f"❌ Both LLM configurations failed: {e2}")
-        # Use a simple configuration for testing
-        llm = None
+        print("✅ NVIDIA NIM LLM configured successfully with observability")
+        return llm
+    except Exception as e:
+        print(f"⚠️ NVIDIA NIM configuration issue: {e}")
+        # Fallback to OpenAI compatible configuration
+        try:
+            llm = LLM(
+                model="gpt-3.5-turbo",
+                api_key=os.getenv("OPENAI_API_KEY"),
+                temperature=0.2,
+            )
+            print("✅ Fallback LLM configured with observability")
+            return llm
+        except Exception as e2:
+            print(f"❌ Both LLM configurations failed: {e2}")
+            raise
+
+# Initialize LLM with observability
+llm = create_enhanced_llm()
 
 # Creating a Document Verification Specialist
 document_verifier = Agent(
@@ -61,6 +66,7 @@ document_verifier = Agent(
     tools=[financial_document_tool],
     llm=llm,
     max_iter=3,
+    max_execution_time=120,  # 2 minutes
     allow_delegation=True  # Can delegate to other specialists after verification
 )
 
@@ -96,6 +102,7 @@ financial_analyst = Agent(
     tools=[financial_document_tool, search_tool],
     llm=llm,
     max_iter=4,
+    max_execution_time=240,  # 4 minutes
     allow_delegation=True
 )
 
@@ -130,6 +137,7 @@ investment_specialist = Agent(
     tools=[investment_analysis_tool, search_tool],
     llm=llm,
     max_iter=4,
+    max_execution_time=240,  # 4 minutes
     allow_delegation=True
 )
 
@@ -165,6 +173,7 @@ risk_assessor = Agent(
     tools=[risk_assessment_tool, search_tool],
     llm=llm,
     max_iter=4,
+    max_execution_time=240,  # 4 minutes
     allow_delegation=False  # Final specialist in the chain
 )
 
@@ -198,6 +207,7 @@ report_coordinator = Agent(
     tools=[search_tool],
     llm=llm,
     max_iter=3,
+    max_execution_time=180,  # 3 minutes
     allow_delegation=False
 )
 
@@ -205,3 +215,8 @@ report_coordinator = Agent(
 data_extractor = financial_analyst
 investment_analyst = investment_specialist
 risk_analyst = risk_assessor
+
+# Function to get LLM metrics
+def get_llm_metrics():
+    """Get current LLM observability metrics"""
+    return llm_observability.get_metrics_summary()

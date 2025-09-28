@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from crewai import Crew, Process
-from agents_with_observability import (
+from agents import (
     financial_analyst, data_extractor, investment_analyst, risk_analyst,
     document_verifier, investment_specialist, risk_assessor, report_coordinator
 )
@@ -858,8 +858,8 @@ def process_analysis_background(
         # Use a thread pool executor to run the CPU-intensive CrewAI task
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(run_crew_with_mode, query=query, file_path=file_path, use_enhanced=True)
-            # Wait for completion with a timeout (e.g., 10 minutes)
-            analysis_result = future.result(timeout=600)  # 10 minutes timeout
+            # Wait for completion with a timeout (increased to 15 minutes for complex financial analysis)
+            analysis_result = future.result(timeout=900)  # 15 minutes timeout
         
         logger.info(f"CrewAI analysis completed in thread: {threading.current_thread().name}")
         logger.info(f"CrewAI result length: {len(analysis_result)}")
@@ -1599,7 +1599,7 @@ if __name__ == "__main__":
 async def get_llm_metrics(current_user: User = Depends(get_current_user)):
     """Get LLM observability metrics"""
     try:
-        from agents_with_observability import get_llm_metrics
+        from agents import get_llm_metrics
         metrics = get_llm_metrics()
         
         return {

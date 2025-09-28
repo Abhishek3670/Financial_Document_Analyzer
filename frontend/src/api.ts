@@ -317,7 +317,7 @@ export const documentAPI = {
     analysisId: string,
     onProgress?: (progress: number) => void,
     interval: number = 2000, // 2 seconds
-    maxAttempts: number = 150 // 5 minutes (150 * 2 seconds)
+    maxAttempts: number = 450 // Increased to 15 minutes (450 * 2 seconds)
   ): Promise<{ status: string; analysis?: any }> => {
     let attempts = 0;
     
@@ -338,9 +338,9 @@ export const documentAPI = {
             const analysisResponse = await documentAPI.getAnalysisById(analysisId);
             resolve({ status: 'completed', analysis: analysisResponse });
           } else if (statusResponse.status === 'failed') {
-            reject(new Error('Analysis failed'));
+            reject(new Error('Analysis failed: ' + (statusResponse.message || 'Unknown error')));
           } else if (attempts >= maxAttempts) {
-            reject(new Error('Analysis timeout'));
+            reject(new Error('Analysis timeout: The analysis is taking longer than expected. Please try again with a simpler query or check back later.'));
           } else {
             // Continue polling
             setTimeout(poll, interval);
