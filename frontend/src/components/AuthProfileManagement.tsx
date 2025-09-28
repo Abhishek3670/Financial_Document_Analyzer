@@ -815,9 +815,8 @@ export const AccountSecurityOverview: React.FC<{
 }> = ({ user, onEnableTwoFactor, onViewSessions, onViewLoginHistory }) => {
   const securityScore = () => {
     let score = 0;
-    if (user.is_verified) score += 25;
-    if (user.two_factor_enabled) score += 35;
-    if (user.last_login) score += 20;
+    if (user.two_factor_enabled) score += 50;
+    if (user.last_login) score += 30;
     if (user.password_hash) score += 20; // Assuming password exists
     return score;
   };
@@ -863,24 +862,6 @@ export const AccountSecurityOverview: React.FC<{
 
       {/* Security Features */}
       <div className="space-y-4">
-        {/* Email Verification */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <div className={`w-3 h-3 rounded-full mr-3 ${user.is_verified ? 'bg-green-500' : 'bg-yellow-500'}`} />
-            <div>
-              <h4 className="text-sm font-medium text-gray-900">Email Verification</h4>
-              <p className="text-xs text-gray-500">
-                {user.is_verified ? 'Your email is verified' : 'Email verification pending'}
-              </p>
-            </div>
-          </div>
-          {user.is_verified ? (
-            <CheckCircle className="w-5 h-5 text-green-500" />
-          ) : (
-            <AlertTriangle className="w-5 h-5 text-yellow-500" />
-          )}
-        </div>
-
         {/* Two-Factor Authentication */}
         <div className="flex items-center justify-between">
           <div className="flex items-center">

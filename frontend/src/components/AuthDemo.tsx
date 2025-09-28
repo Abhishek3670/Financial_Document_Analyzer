@@ -15,7 +15,6 @@ const mockUser = {
   last_name: 'User',
   full_name: 'Demo User',
   is_active: true,
-  is_verified: true,
   created_at: '2024-01-01T00:00:00Z',
   last_activity: '2024-01-01T00:00:00Z',
   last_login: '2024-01-01T12:00:00Z'

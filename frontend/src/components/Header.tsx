@@ -3,7 +3,6 @@ import { BarChart3, FileText, User, Settings, LogOut } from 'lucide-react';
 import { useAuth } from './Auth';
 import { EnhancedAuthModalWithReset } from './AuthEnhanced';
 import { ProfileManagementDashboard } from './AuthProfileManagement';
-import { EmailVerificationBanner } from './AuthEmailVerification';
 import { useToast } from './Toast';
 
 const Header: React.FC = () => {
@@ -134,20 +133,7 @@ const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* Email Verification Banner */}
-        {user && !user.is_verified && (
-          <div className="border-t border-gray-200">
-            <div className="container mx-auto px-4">
-              <EmailVerificationBanner 
-                user={user}
-                onVerificationComplete={() => {
-                  showToast('Email verified successfully!', 'success');
-                  refreshUser();
-                }}
-              />
-            </div>
-          </div>
-        )}
+
       </header>
 
       {/* Authentication Modal */}

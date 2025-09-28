@@ -9,7 +9,6 @@ export interface User {
   last_name?: string;
   full_name: string;
   is_active: boolean;
-  is_verified: boolean;
   created_at: string;
   last_activity?: string;
   last_login?: string;

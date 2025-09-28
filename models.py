@@ -22,7 +22,6 @@ class User(Base):
     username = Column(String, unique=True, nullable=True, index=True)  # Nullable for backward compatibility
     password_hash = Column(String, nullable=True)  # Nullable for backward compatibility
     is_active = Column(Boolean, default=True)
-    is_verified = Column(Boolean, default=False)
     
     # Original session-based fields (keeping for backward compatibility)
     session_id = Column(String, unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
@@ -157,7 +156,6 @@ class UserResponse(BaseModel):
     last_name: Optional[str] = None
     full_name: str
     is_active: bool
-    is_verified: bool
     created_at: datetime
     last_activity: datetime
     last_login: Optional[datetime] = None

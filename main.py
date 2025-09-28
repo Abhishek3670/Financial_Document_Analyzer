@@ -39,7 +39,7 @@ from models import (
 # Authentication imports
 from auth import auth_service
 from auth_middleware import (
-    get_current_user, get_current_active_user, get_current_verified_user,
+    get_current_user, get_current_active_user,
     get_optional_user, get_user_or_session
 )
 
@@ -518,7 +518,6 @@ async def update_user_profile(
                     detail="Email already taken"
                 )
             user.email = profile_update.email
-            user.is_verified = False  # Require re-verification
         
         session.commit()
         
@@ -531,7 +530,6 @@ async def update_user_profile(
             last_name=user.last_name,
             full_name=user.full_name,
             is_active=user.is_active,
-            is_verified=user.is_verified,
             created_at=user.created_at,
             last_activity=user.last_activity,
             last_login=user.last_login

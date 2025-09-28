@@ -137,8 +137,7 @@ class AuthService:
                 password_hash=self.hash_password(user_data.password),
                 first_name=user_data.first_name,
                 last_name=user_data.last_name,
-                is_active=True,
-                is_verified=False  # You might want to implement email verification
+                is_active=True
             )
             
             session.add(user)
@@ -215,7 +214,6 @@ class AuthService:
             last_name=user.last_name,
             full_name=user.full_name,
             is_active=user.is_active,
-            is_verified=user.is_verified,
             created_at=user.created_at,
             last_activity=user.last_activity,
             last_login=user.last_login

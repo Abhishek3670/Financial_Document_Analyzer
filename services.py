@@ -116,21 +116,6 @@ class UserService:
             return False
     
     @staticmethod
-    def verify_user_email(session: Session, user_id: str) -> bool:
-        """Mark user's email as verified"""
-        try:
-            user = session.query(User).filter(User.id == user_id).first()
-            if user:
-                user.is_verified = True
-                session.flush()
-                logger.info(f"User email verified: {user.email}")
-                return True
-            return False
-        except Exception as e:
-            logger.error(f"Error verifying user email: {e}")
-            return False
-    
-    @staticmethod
     @cache_database_query(table="users", ttl=300)  # Cache for 5 minutes
     def get_authenticated_users(session: Session, limit: int = None) -> List[User]:
         """Get all authenticated users (users with email and password)"""
@@ -193,14 +178,11 @@ class UserService:
             ).count()
             session_users = total_users - authenticated_users
             active_users = session.query(User).filter(User.is_active == True).count()
-            verified_users = session.query(User).filter(User.is_verified == True).count()
-            
             return {
                 "total_users": total_users,
                 "authenticated_users": authenticated_users,
                 "session_users": session_users,
-                "active_users": active_users,
-                "verified_users": verified_users
+                "active_users": active_users
             }
         except Exception as e:
             logger.error(f"Error getting user stats: {e}")

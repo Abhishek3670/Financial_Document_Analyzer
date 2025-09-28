@@ -59,7 +59,6 @@ export interface User {
   last_name?: string;
   full_name: string;
   is_active: boolean;
-  is_verified: boolean;
   created_at: string;
   last_activity?: string;
   last_login?: string;
@@ -270,26 +269,7 @@ export const authAPI = {
     }
   },
 
-  // Email verification endpoints (to be implemented on backend)
-  requestEmailVerification: async (): Promise<{ message: string }> => {
-    try {
-      const response = await api.post('/auth/request-verification');
-      return response.data;
-    } catch (error: any) {
-      const message = error.response?.data?.detail || 'Email verification request failed';
-      throw new Error(message);
-    }
-  },
 
-  verifyEmail: async (token: string): Promise<{ message: string }> => {
-    try {
-      const response = await api.post('/auth/verify-email', { token });
-      return response.data;
-    } catch (error: any) {
-      const message = error.response?.data?.detail || 'Email verification failed';
-      throw new Error(message);
-    }
-  },
 };
 
 // Document Analysis API
