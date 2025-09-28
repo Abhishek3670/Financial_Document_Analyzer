@@ -3,25 +3,38 @@ import { Upload, FileText, X, Loader2, AlertCircle, Save } from 'lucide-react';
 import type { AnalysisResponse } from '../types';
 import { documentAPI } from '../api';
 
+// Define interface for upload form state
+interface UploadFormState {
+  selectedFile: File | null;
+  query: string;
+  keepFile: boolean;
+  error: string | null;
+}
+
 interface FileUploadProps {
   onAnalysisComplete: (result: AnalysisResponse) => void;
   className?: string;
+  // Added props for lifted state
+  uploadFormState: UploadFormState;
+  onFormStateChange: (state: UploadFormState) => void;
 }
 
-const FileUpload: React.FC<FileUploadProps> = ({ onAnalysisComplete, className = '' }) => {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+const FileUpload: React.FC<FileUploadProps> = ({ 
+  onAnalysisComplete, 
+  className = '',
+  uploadFormState,
+  onFormStateChange
+}) => {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState('Provide a comprehensive financial analysis of this document');
-  const [keepFile, setKeepFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { selectedFile, query, keepFile, error } = uploadFormState;
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setSelectedFile(file);
-      setError(null);
+      onFormStateChange({ ...uploadFormState, selectedFile: file, error: null });
     }
   };
 
@@ -33,8 +46,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onAnalysisComplete, className =
     event.preventDefault();
     const file = event.dataTransfer.files[0];
     if (file) {
-      setSelectedFile(file);
-      setError(null);
+      onFormStateChange({ ...uploadFormState, selectedFile: file, error: null });
     }
   };
 
@@ -42,7 +54,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onAnalysisComplete, className =
     if (!selectedFile) return;
 
     setIsLoading(true);
-    setError(null);
+    onFormStateChange({ ...uploadFormState, error: null });
     setProgress(0);
 
     try {
@@ -68,16 +80,37 @@ const FileUpload: React.FC<FileUploadProps> = ({ onAnalysisComplete, className =
       onAnalysisComplete(analysisResponse);
       
       // Reset form
-      setSelectedFile(null);
+      onFormStateChange({ 
+        selectedFile: null, 
+        query: 'Provide a comprehensive financial analysis of this document',
+        keepFile: false,
+        error: null
+      });
       setProgress(0);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     } catch (err: any) {
-      setError(err.message || 'Analysis failed');
+      const errorMessage = err.message || 'Analysis failed';
+      onFormStateChange({ ...uploadFormState, error: errorMessage });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleRemoveFile = () => {
+    onFormStateChange({ ...uploadFormState, selectedFile: null });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleQueryChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    onFormStateChange({ ...uploadFormState, query: e.target.value });
+  };
+
+  const handleKeepFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onFormStateChange({ ...uploadFormState, keepFile: e.target.checked });
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -135,7 +168,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onAnalysisComplete, className =
               </div>
             </div>
             <button
-              onClick={() => setSelectedFile(null)}
+              onClick={handleRemoveFile}
               className="text-gray-400 hover:text-gray-600"
             >
               <X className="w-5 h-5" />
@@ -151,7 +184,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onAnalysisComplete, className =
         </label>
         <textarea
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={handleQueryChange}
           className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           rows={3}
           placeholder="Describe what specific analysis you'd like..."
@@ -164,7 +197,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onAnalysisComplete, className =
           <input
             type="checkbox"
             checked={keepFile}
-            onChange={(e) => setKeepFile(e.target.checked)}
+            onChange={handleKeepFileChange}
             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
           />
           <span className="ml-2 text-sm text-gray-700">Keep file for future reference</span>

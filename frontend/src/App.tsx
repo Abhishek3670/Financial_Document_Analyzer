@@ -10,12 +10,27 @@ import { ToastProvider } from './components/Toast';
 import { AuthProvider } from './components/Auth';
 import './App.css';
 
+// Define interface for upload form state
+interface UploadFormState {
+  selectedFile: File | null;
+  query: string;
+  keepFile: boolean;
+  error: string | null;
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<NavigationTab>('upload');
   const [analysisResult, setAnalysisResult] = useState<AnalysisResponse | null>(null);
   const [selectedAnalysis, setSelectedAnalysis] = useState<AnalysisHistoryItem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  // Lifted state to persist the entire upload form state across tab switches
+  const [uploadFormState, setUploadFormState] = useState<UploadFormState>({
+    selectedFile: null,
+    query: 'Provide a comprehensive financial analysis of this document',
+    keepFile: false,
+    error: null
+  });
 
   // Check backend health on mount
   useEffect(() => {
@@ -68,12 +83,19 @@ function App() {
   const handleNewAnalysis = () => {
     setAnalysisResult(null);
     setSelectedAnalysis(null);
+    // Reset the upload form state when starting a new analysis
+    setUploadFormState({
+      selectedFile: null,
+      query: 'Provide a comprehensive financial analysis of this document',
+      keepFile: false,
+      error: null
+    });
     setActiveTab('upload');
   };
 
   const handleTabChange = (tab: NavigationTab) => {
     setActiveTab(tab);
-    // Clear any selected analysis when switching tabs
+    // Clear any selected analysis when switching tabs (but keep the upload form state)
     if (tab !== 'upload') {
       setAnalysisResult(null);
       setSelectedAnalysis(null);
@@ -151,6 +173,8 @@ function App() {
           <div className="space-y-6">
             <FileUpload 
               onAnalysisComplete={handleAnalysisComplete}
+              uploadFormState={uploadFormState}
+              onFormStateChange={setUploadFormState}
             />
           </div>
         );
