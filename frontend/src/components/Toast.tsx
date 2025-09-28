@@ -78,7 +78,7 @@ export const Toast: React.FC<ToastProps> = ({
     <div
       className={`
         transform transition-all duration-300 ease-in-out
-        ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
+        ${isVisible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'}
         flex items-center p-4 mb-3 rounded-lg border shadow-lg
         ${getBackgroundColor()} ${getTextColor()}
         max-w-sm w-full
@@ -138,7 +138,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       {children}
       
       {/* Toast Container */}
-      <div className="fixed top-4 right-4 z-50 space-y-2">
+      <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 space-y-2">
         {toasts.map(toast => (
           <Toast
             key={toast.id}
