@@ -7,11 +7,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from crewai import Agent, LLM
-from tools import (
+from backend.utils.tools import (
     search_tool, financial_document_tool, investment_analysis_tool, risk_assessment_tool,
     financial_search_tool, investment_search_tool, risk_search_tool, industry_search_tool
 )
-from llm_observability import track_crewai_call, llm_observability
+from backend.utils.llm_observability import track_crewai_call, llm_observability
 
 # Configure logging
 logger = logging.getLogger(__name__)

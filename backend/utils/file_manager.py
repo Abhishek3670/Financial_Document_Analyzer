@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
-from database import get_database_manager
-from services import DocumentService, UserService
+from backend.core.database import get_database_manager
+from backend.services.services import DocumentService, UserService
 
 logger = logging.getLogger(__name__)
 

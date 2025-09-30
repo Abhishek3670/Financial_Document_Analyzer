@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import type { User } from '../types';
-import { authAPI } from '../api';
+import type { User } from '../../types';
+import { authAPI } from '../../api';
 import { 
   User as UserIcon, 
   Mail, 

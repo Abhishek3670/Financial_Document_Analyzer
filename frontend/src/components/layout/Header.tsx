@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart3, FileText, User, Settings, LogOut } from 'lucide-react';
-import { useAuth } from './Auth';
-import { EnhancedAuthModalWithReset } from './AuthEnhanced';
-import { ProfileManagementDashboard } from './AuthProfileManagement';
-import { useToast } from './Toast';
+import { useAuth } from '../auth/Auth';
+import { EnhancedAuthModalWithReset } from '../auth/AuthEnhanced';
+import { ProfileManagementDashboard } from '../auth/AuthProfileManagement';
+import { useToast } from '../ui/Toast';
 
-const IntegratedHeader: React.FC = () => {
+interface HeaderProps {
+  backendStatus?: 'checking' | 'online' | 'offline';
+}
+
+const Header: React.FC<HeaderProps> = ({ backendStatus = 'checking' }) => {
   const { user, logout, refreshUser } = useAuth();
   const { showToast } = useToast();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -26,8 +30,13 @@ const IntegratedHeader: React.FC = () => {
     setPreviousUser(user);
   }, [user, previousUser, showToast, refreshUser]);
 
-  const handleAuthSuccess = () => {
-    setShowAuthModal(false);
+  const handleAuthSuccess = async () => {
+    // Refresh user immediately so UI updates without manual reload
+    try {
+      await refreshUser();
+    } finally {
+      setShowAuthModal(false);
+    }
     // Toast will be shown by the useEffect when user state changes
   };
 
@@ -38,6 +47,34 @@ const IntegratedHeader: React.FC = () => {
     } catch (error) {
       showToast('Error logging out', 'error');
     }
+  };
+
+  const renderBackendStatus = () => {
+    if (backendStatus === 'checking') {
+      return (
+        <div className="flex items-center text-yellow-700 bg-yellow-50 px-3 py-1 rounded-full text-sm">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mr-2"></div>
+          <span>Checking backend...</span>
+        </div>
+      );
+    }
+    
+    if (backendStatus === 'offline') {
+      return (
+        <div className="flex items-center text-red-700 bg-red-50 px-3 py-1 rounded-full text-sm">
+          <div className="w-4 h-4 bg-red-400 rounded-full mr-2"></div>
+          <span>Backend Offline</span>
+        </div>
+      );
+    }
+
+    // Online status
+    return (
+      <div className="flex items-center text-green-700 bg-green-50 px-3 py-1 rounded-full text-sm">
+        <div className="w-4 h-4 bg-green-400 rounded-full mr-2"></div>
+        <span>Backend Online</span>
+      </div>
+    );
   };
 
   const UserDropdown = () => (
@@ -101,8 +138,9 @@ const IntegratedHeader: React.FC = () => {
             </div>
             
             <div className="flex items-center space-x-4">
-              {/* Navigation links removed as they were not implemented */}
-
+              {/* Backend Status Indicator */}
+              {renderBackendStatus()}
+              
               {/* Authentication Section */}
               {user ? (
                 <UserDropdown />
@@ -117,14 +155,13 @@ const IntegratedHeader: React.FC = () => {
             </div>
           </div>
         </div>
-
-
       </header>
 
       {/* Authentication Modal */}
       <EnhancedAuthModalWithReset
         isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={handleAuthSuccess}
         defaultMode="login"
       />
 
@@ -168,4 +205,4 @@ const IntegratedHeader: React.FC = () => {
   );
 };
 
-export default IntegratedHeader;
+export default Header;

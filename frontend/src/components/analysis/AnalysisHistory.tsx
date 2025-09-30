@@ -14,8 +14,8 @@ import {
   Loader2,
   AlertTriangle
 } from 'lucide-react';
-import { useAuth } from './Auth';
-import { documentAPI, Analysis } from '../api';
+import { useAuth } from '../auth/Auth';
+import { documentAPI, Analysis } from '../../api';
 
 interface AnalysisHistoryProps {
   onViewAnalysis: (analysis: Analysis) => void;

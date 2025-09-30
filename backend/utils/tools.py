@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Import Redis cache
-from redis_cache import cache_result, cache_llm_result, cache_analysis_result
+from backend.utils.redis_cache import cache_result, cache_llm_result, cache_analysis_result
 
 # Creating search tool with Serper
 SERPER_API_KEY = os.getenv("SERPER_API_KEY")

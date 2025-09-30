@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import FileUpload from './components/FileUpload';
-import AnalysisResults from './components/AnalysisResults';
-import AnalysisHistory from './components/AnalysisHistory';
-import Documents from './components/Documents';
-import Header from './components/Header';
-import Navigation, { NavigationTab } from './components/Navigation';
+import FileUpload from './components/ui/FileUpload';
+import AnalysisResults from './components/analysis/AnalysisResults';
+import AnalysisHistory from './components/analysis/AnalysisHistory';
+import Documents from './components/analysis/Documents';
+import Header from './components/layout/Header';
+import Navigation, { NavigationTab } from './components/layout/Navigation';
 import { AnalysisResponse, AnalysisHistoryItem } from './types';
 import { healthCheck } from './api';
-import { ToastProvider } from './components/Toast';
-import { AuthProvider } from './components/Auth';
+import { ToastProvider } from './components/ui/Toast';
+import { AuthProvider } from './components/auth/Auth';
 import './App.css';
 
 // Define interface for upload form state

@@ -1,12 +1,12 @@
 ## Importing libraries and files
 from crewai import Task
-from agents import (
+from backend.core.agents import (
     document_verifier, financial_analyst, investment_specialist, 
     risk_assessor, report_coordinator,
     # Legacy aliases for compatibility
     data_extractor, investment_analyst, risk_analyst
 )
-from tools import (
+from backend.utils.tools import (
     search_tool, financial_document_tool, investment_analysis_tool, risk_assessment_tool,
     financial_search_tool, investment_search_tool, risk_search_tool, industry_search_tool
 )

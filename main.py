@@ -16,20 +16,20 @@ from crewai import Crew, Process
 from typing import List, Optional
 
 from crewai import Crew, Process
-from agents import (
+from backend.core.agents import (
     financial_analyst, data_extractor, investment_analyst, risk_analyst,
     document_verifier, investment_specialist, risk_assessor, report_coordinator
 )
-from task import (
+from backend.core.task import (
     comprehensive_financial_analysis,
     document_verification_task, financial_analysis_task,
     investment_analysis_task, risk_assessment_task, report_synthesis_task
 )
 
 # Database imports
-from database import init_database, get_db_session, get_database_manager
-from services import UserService, DocumentService, AnalysisService, AnalysisHistoryService
-from models import (
+from backend.core.database import init_database, get_db_session, get_database_manager
+from backend.services.services import UserService, DocumentService, AnalysisService, AnalysisHistoryService
+from backend.models.models import (
     User,
     Document,
     Analysis,
@@ -42,14 +42,14 @@ from models import (
 )
 
 # Authentication imports
-from auth import auth_service
-from auth_middleware import (
+from backend.auth.auth import auth_service
+from backend.auth.auth_middleware import (
     get_current_user, get_current_active_user,
     get_optional_user, get_user_or_session
 )
 
 # Import Redis cache
-from redis_cache import cache_result, cache_llm_result, cache_analysis_result
+from backend.utils.redis_cache import cache_result, cache_llm_result, cache_analysis_result
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -212,7 +212,7 @@ def run_crew(query: str, file_path: str) -> str:
             
             # Try to extract PDF content and provide a basic analysis
             try:
-                from tools import financial_document_tool
+                from backend.utils.tools import financial_document_tool
                 pdf_content = financial_document_tool._run(file_path)
                 
                 # Provide a fallback analysis
@@ -253,7 +253,7 @@ We apologize for the inconvenience. Please contact support if this issue continu
         logger.error(f"Error running crew: {e}")
         # Generate a fallback analysis in case of complete failure
         try:
-            from tools import financial_document_tool
+            from backend.utils.tools import financial_document_tool
             pdf_content = financial_document_tool._run(file_path)
             fallback_analysis = generate_fallback_analysis(pdf_content[:2000], query)
             logger.info("Generated fallback analysis due to CrewAI exception")
@@ -561,103 +561,8 @@ def run_dynamic_multi_agent_crew(query: str, file_path: str) -> str:
     try:
         logger.info("Starting dynamic multi-agent financial analysis workflow")
         
-        # First, run document verification (required for all other tasks)
-        verification_start = time.time()
-        verification_crew = Crew(
-            agents=[document_verifier],
-            tasks=[document_verification_task],
-            process=Process.sequential,
-            verbose=True,
-            memory=True
-        )
-        
-        # Execute document verification
-        verification_result = verification_crew.kickoff({
-            "query": query,
-            "file_path": file_path
-        })
-        verification_time = time.time() - verification_start
-        logger.info(f"Document verification completed in {verification_time:.2f} seconds")
-        
-        # Determine document type and industry
-        document_type = verification_result.get('document_type', 'unknown')
-        industry = verification_result.get('industry', 'unknown')
-        logger.info(f"Detected document type: {document_type}")
-        logger.info(f"Detected industry: {industry}")
-        
-        # Select agents and tasks based on document type and industry
-        if document_type == 'annual_report' and industry == 'finance':
-            agents = [financial_analyst, investment_specialist, risk_assessor, report_coordinator]
-            tasks = [financial_analysis_task, investment_analysis_task, risk_assessment_task, report_synthesis_task]
-        elif document_type == 'quarterly_report' and industry == 'technology':
-            agents = [financial_analyst, investment_specialist, risk_assessor, report_coordinator]
-            tasks = [financial_analysis_task, investment_analysis_task, risk_assessment_task, report_synthesis_task]
-        else:
-            agents = [financial_analyst, data_extractor, investment_analyst, risk_analyst]
-            tasks = [comprehensive_financial_analysis]
-        
-        # Create the dynamic crew
-        dynamic_financial_crew = Crew(
-            agents=agents,
-            tasks=tasks,
-            process=Process.sequential,
-            verbose=True,
-            memory=True
-        )
-        
-        # Execute the dynamic workflow
-        result = dynamic_financial_crew.kickoff({
-            "query": query,
-            "file_path": file_path
-        })
-        
-        # Track performance
-        track_crew_performance(crew_name, start_time)
-        
-        # Log detailed performance metrics
-        logger.info(f"PERFORMANCE METRICS - Dynamic Crew:")
-        logger.info(f"  Total Execution Time: {time.time() - start_time:.2f}s")
-        logger.info(f"  Document Verification: {verification_time:.2f}s")
-        
-        return result
-        
-        logger.info(f"  Document Verification: {verification_time:.2f}s")
-        logger.info(f"  Financial Analysis: {financial_time:.2f}s")
-        logger.info(f"  Parallel Processing: {parallel_time:.2f}s")
-        logger.info(f"    Investment Analysis: {investment_time:.2f}s")
-        logger.info(f"    Risk Analysis: {risk_time:.2f}s")
-        logger.info(f"  Report Synthesis: {synthesis_time:.2f}s")
-        logger.info(f"  Performance Gain: Enhanced parallel processing vs sequential estimated")
-        
-        # Process the final result
-        if final_result is None:
-            final_result = "No analysis result was generated from the parallel workflow. Please try again."
-        elif hasattr(final_result, "raw"):
-            final_result = str(final_result.raw)
-        else:
-            final_result = str(final_result)
-            
-        return final_result
-        
-    except Exception as e:
-        # Track performance even on error
-        track_crew_performance(crew_name, start_time)
-        execution_time = time.time() - start_time
-        logger.error(f"Parallel crew workflow error after {execution_time:.2f} seconds: {e}")
-        logger.info("Falling back to hierarchical crew configuration due to error")
-        # Fall back to the hierarchical crew configuration
-        return run_enhanced_multi_agent_crew(query, file_path)
-
-@cache_analysis_result(ttl=14400)  # Cache for 4 hours
-def run_dynamic_multi_agent_crew(query: str, file_path: str) -> str:
-    """Run a dynamic multi-agent crew with agent selection based on document type and industry"""
-    start_time = time.time()
-    crew_name = "dynamic_crew"
-    try:
-        logger.info("Starting dynamic multi-agent financial analysis workflow")
-        
         # First, read and classify the document
-        from tools import financial_document_tool, document_classifier_tool
+        from backend.utils.tools import financial_document_tool, document_classifier_tool
         
         # Read the document
         document_content = financial_document_tool._run(file_path)
@@ -671,7 +576,7 @@ def run_dynamic_multi_agent_crew(query: str, file_path: str) -> str:
         logger.info(f"Document classified as: {document_type} in {industry} industry with {processing_speed} processing speed")
         
         # Create dynamic agents based on classification
-        from agents import create_dynamic_agents
+        from backend.core.agents import create_dynamic_agents
         dynamic_agents = create_dynamic_agents(document_type, industry, processing_speed)
         
         # Create the crew with dynamic agents
@@ -1286,9 +1191,9 @@ def process_analysis_background(
 ):
     """Process the analysis in the background using a separate thread to avoid blocking"""
     # Create a new database session for the background task
-    from database import db_manager
+    from backend.core.database import db_manager
     if not db_manager:
-        from database import init_database
+        from backend.core.database import init_database
         db_manager = init_database()
     
     session = db_manager.get_session()
@@ -1306,14 +1211,18 @@ def process_analysis_background(
             analysis_result = future.result(timeout=900)  # 15 minutes timeout
         
         logger.info(f"CrewAI analysis completed in thread: {threading.current_thread().name}")
-        logger.info(f"CrewAI result length: {len(analysis_result)}")
+        # Convert CrewOutput to string before getting length
+        result_str = str(analysis_result)
+        logger.info(f"CrewAI result length: {len(result_str)}")
         
         # Complete the analysis - with better error handling
         logger.info("Calling AnalysisService.complete_analysis")
+        # Convert CrewOutput to string before passing to complete_analysis
+        result_str = str(analysis_result)
         completion_success = AnalysisService.complete_analysis(
             session=session,
             analysis_id=analysis_id,
-            result=analysis_result,
+            result=result_str,
             summary=None,  # You could add logic to extract a summary
             confidence_score=None,  # You could add confidence scoring
             key_insights_count=None  # You could count key insights
@@ -1460,7 +1369,7 @@ async def get_analysis_history(
                     "status": analysis.status,
                     "confidence_score": analysis.confidence_score,
                     "key_insights_count": analysis.key_insights_count,
-                    "document": document_info.dict() if document_info else None
+                    "document": document_info.model_dump() if document_info else None
                 }
                 
                 analysis_responses.append(analysis_dict)
@@ -1533,8 +1442,8 @@ async def get_analysis_by_id(
         analysis_resp.document = document_info
         
         return {
-            "analysis": analysis_resp.dict(),
-            "document": document_info.dict() if document_info else None
+            "analysis": analysis_resp.model_dump(),
+            "document": document_info.model_dump() if document_info else None
         }
         
     except HTTPException:
@@ -1565,7 +1474,7 @@ async def get_user_documents(
         has_more = (page * page_size) < total_count
         
         return {
-            "documents": [resp.dict() for resp in document_responses],
+            "documents": [resp.model_dump() for resp in document_responses],
             "pagination": {
                 "page": page,
                 "page_size": page_size,
@@ -1603,7 +1512,7 @@ async def search_user_documents(
         has_more = (page * page_size) < total_count
         
         return {
-            "documents": [resp.dict() for resp in document_responses],
+            "documents": [resp.model_dump() for resp in document_responses],
             "pagination": {
                 "page": page,
                 "page_size": page_size,
@@ -1748,7 +1657,8 @@ async def get_agent_performance():
 async def get_tool_performance():
     """Get performance metrics for all tools"""
     try:
-        from tools import get_tool_performance_summary
+        from backend.utils.tools import get_tool_performance_summary
+
         summary = get_tool_performance_summary()
         return {
             "tool_performance": summary,
@@ -1767,7 +1677,7 @@ async def performance_dashboard():
     """Get a comprehensive performance dashboard"""
     try:
         # Get agent performance metrics
-        from agents import get_agent_performance_summary, llm_observability
+        from backend.core.agents import get_agent_performance_summary, llm_observability
         agent_summary = get_agent_performance_summary()
         
         # Get tool performance metrics
@@ -1845,7 +1755,7 @@ async def get_analysis_status(
             progress_percentage=progress_map.get(analysis.status, 0)
         )
         
-        return status_response.dict()
+        return status_response.model_dump()
         
     except HTTPException:
         raise
@@ -1854,7 +1764,8 @@ async def get_analysis_status(
         raise HTTPException(status_code=500, detail=str(e))
 
 # File management and maintenance endpoints
-from file_manager import get_file_manager
+from backend.utils.file_manager import get_file_manager
+
 
 @app.post("/admin/maintenance")
 async def run_maintenance(session: Session = Depends(get_db_session)):
@@ -2154,7 +2065,8 @@ if __name__ == "__main__":
 async def get_llm_metrics(current_user: User = Depends(get_current_user)):
     """Get LLM observability metrics"""
     try:
-        from agents import get_llm_metrics
+        from backend.core.agents import get_llm_metrics
+
         metrics = get_llm_metrics()
         
         return {
@@ -2174,7 +2086,7 @@ async def get_llm_metrics(current_user: User = Depends(get_current_user)):
 async def get_cache_stats(current_user: User = Depends(get_current_user)):
     """Get Redis cache statistics"""
     try:
-        from redis_cache import redis_cache
+        from backend.utils.redis_cache import redis_cache
         stats = redis_cache.get_stats()
         
         return {
@@ -2197,7 +2109,7 @@ async def invalidate_cache(
 ):
     """Invalidate cache entries"""
     try:
-        from redis_cache import redis_cache, invalidate_analysis_cache, invalidate_llm_cache
+        from backend.utils.redis_cache import redis_cache, invalidate_analysis_cache, invalidate_llm_cache
         
         if cache_type == "analysis":
             invalidate_analysis_cache()
