@@ -644,24 +644,10 @@ def run_dynamic_multi_agent_crew(query: str, file_path: str) -> str:
         return run_parallel_multi_agent_crew(query, file_path)
 
 def run_crew_with_mode(query: str, file_path: str, use_enhanced: bool = True) -> str:
-    """Run crew analysis with option to choose enhanced multi-agent or original single-agent mode"""
-    if use_enhanced:
-        try:
-            # Try the dynamic processing approach first
-            try:
-                return run_dynamic_multi_agent_crew(query, file_path)
-            except Exception as dynamic_error:
-                logger.warning(f"Dynamic processing failed, falling back to parallel: {dynamic_error}")
-                try:
-                    return run_parallel_multi_agent_crew(query, file_path)
-                except Exception as parallel_error:
-                    logger.warning(f"Parallel processing failed, falling back to hierarchical: {parallel_error}")
-                    return run_enhanced_multi_agent_crew(query, file_path)
-        except Exception as e:
-            logger.warning(f"Enhanced mode failed, falling back to original: {e}")
-            return run_crew(query, file_path)
-    else:
-        return run_crew(query, file_path)
+    """Run crew analysis with only the parallel multi-agent approach as the single execution method"""
+    # Always use the parallel multi-agent approach as the single execution method
+    # All existing functions are preserved for backward compatibility
+    return run_parallel_multi_agent_crew(query, file_path)
 
 def compare_crew_performance(query: str, file_path: str) -> Dict[str, Any]:
     """Compare performance of different crew implementations"""
