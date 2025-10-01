@@ -35,6 +35,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const loadUser = async () => {
     const token = storage.getToken();
@@ -51,9 +52,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Token is invalid, clear storage
         storage.clearAuth();
         setUser(null);
+        setShowAuthModal(true); // Show auth modal for unauthenticated users
       }
     } else {
       setUser(null);
+      setShowAuthModal(true); // Show auth modal for unauthenticated users
     }
     setIsLoading(false);
   };
@@ -67,6 +70,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsLoading(true);
       const response = await authAPI.login({ email, password });
       setUser(response.user);
+      setShowAuthModal(false); // Hide auth modal after successful login
     } catch (error) {
       throw error;
     } finally {
@@ -91,6 +95,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         last_name: data.lastName,
       });
       setUser(response.user);
+      setShowAuthModal(false); // Hide auth modal after successful registration
     } catch (error) {
       throw error;
     } finally {
@@ -107,6 +112,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setUser(null);
       setIsLoading(false);
+      setShowAuthModal(true); // Show auth modal after logout
     }
   };
 
@@ -133,7 +139,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: !!user,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      {showAuthModal && !user && <AuthModal isOpen={true} onClose={() => {}} />}
+    </AuthContext.Provider>
+  );
 };
 
 // Simple Auth Components for compatibility
@@ -173,7 +184,7 @@ export const AuthModal: React.FC<{
           lastName: formData.lastName,
         });
       }
-      onClose();
+      // Don't close the modal here as it's controlled by the AuthProvider
     } catch (error: any) {
       setError(error.message);
     }
@@ -190,13 +201,13 @@ export const AuthModal: React.FC<{
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
-        <h2 className="text-2xl font-bold mb-6 text-center">
+      <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 dark:bg-gray-800">
+        <h2 className="text-2xl font-bold mb-6 text-center dark:text-white">
           {currentMode === 'login' ? 'Sign In' : 'Sign Up'}
         </h2>
         
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200">
             {error}
           </div>
         )}
@@ -205,7 +216,7 @@ export const AuthModal: React.FC<{
           {currentMode === 'register' && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
                   First Name
                 </label>
                 <input
@@ -214,11 +225,11 @@ export const AuthModal: React.FC<{
                   value={formData.firstName}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
                   Last Name
                 </label>
                 <input
@@ -227,14 +238,14 @@ export const AuthModal: React.FC<{
                   value={formData.lastName}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 />
               </div>
             </>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
               Email
             </label>
             <input
@@ -243,12 +254,12 @@ export const AuthModal: React.FC<{
               value={formData.email}
               onChange={handleInputChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
               Password
             </label>
             <input
@@ -257,13 +268,13 @@ export const AuthModal: React.FC<{
               value={formData.password}
               onChange={handleInputChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
           </div>
 
           {currentMode === 'register' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
                 Confirm Password
               </label>
               <input
@@ -272,7 +283,7 @@ export const AuthModal: React.FC<{
                 value={formData.confirmPassword}
                 onChange={handleInputChange}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
             </div>
           )}
@@ -280,7 +291,7 @@ export const AuthModal: React.FC<{
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-blue-600 dark:hover:bg-blue-700"
           >
             {isLoading ? 'Loading...' : currentMode === 'login' ? 'Sign In' : 'Sign Up'}
           </button>
@@ -289,20 +300,13 @@ export const AuthModal: React.FC<{
         <div className="mt-4 text-center">
           <button
             onClick={() => setCurrentMode(currentMode === 'login' ? 'register' : 'login')}
-            className="text-blue-600 hover:text-blue-700 text-sm"
+            className="text-blue-600 hover:text-blue-700 text-sm dark:text-blue-400 dark:hover:text-blue-300"
           >
             {currentMode === 'login' 
               ? "Don't have an account? Sign up" 
               : "Already have an account? Sign in"}
           </button>
         </div>
-
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-        >
-          ✕
-        </button>
       </div>
     </div>
   );

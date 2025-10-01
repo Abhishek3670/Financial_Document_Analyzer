@@ -12,13 +12,25 @@
   background: #f1f1f1;
 }
 
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: #2d3748;
+}
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #c1c1c1;
   border-radius: 3px;
 }
 
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #4a5568;
+}
+
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #a1a1a1;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #718096;
 }
 
 /* Ensure proper spacing and typography */
@@ -57,4 +69,18 @@
 /* Footer positioning */
 .footer {
   margin-top: auto;
+}
+
+/* Dark mode overrides for prose content */
+.dark .prose {
+  color: #e2e8f0;
+}
+
+.dark .prose h1,
+.dark .prose h2,
+.dark .prose h3,
+.dark .prose h4,
+.dark .prose h5,
+.dark .prose h6 {
+  color: #f7fafc;
 }

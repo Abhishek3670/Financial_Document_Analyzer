@@ -61,11 +61,12 @@ test_*
 final_code_clean/
 
 output/
-financial_analyzer.db
-financial_analyzer.db-wal
+
+*.db-wal
 
 project_report.txt
 
 logs/log-2025-10-01-13-56-39.log
 financial_analyzer.db-wal
-logs/
+logs/*
+*.db

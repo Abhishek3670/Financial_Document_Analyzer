@@ -114,7 +114,7 @@ document_verifier = Agent(
     tools=[financial_document_tool],
     llm=llm,
     max_iter=3,
-    max_execution_time=60,  # Reduced from 120 to 60 seconds
+    max_execution_time=120,  # Increased from 60 to 120 seconds to prevent timeout issues
     allow_delegation=True  # Can delegate to other specialists after verification
 )
 
@@ -278,7 +278,7 @@ def create_dynamic_agents(document_type: str = "unknown", industry: str = "gener
     
     # Base execution times
     base_times = {
-        "fast": {"document_verifier": 60, "financial_analyst": 240, "investment_specialist": 180, "risk_assessor": 180, "report_coordinator": 120},
+        "fast": {"document_verifier": 90, "financial_analyst": 240, "investment_specialist": 180, "risk_assessor": 180, "report_coordinator": 120},
         "standard": {"document_verifier": 120, "financial_analyst": 300, "investment_specialist": 240, "risk_assessor": 240, "report_coordinator": 180},
         "detailed": {"document_verifier": 180, "financial_analyst": 420, "investment_specialist": 360, "risk_assessor": 360, "report_coordinator": 240}
     }

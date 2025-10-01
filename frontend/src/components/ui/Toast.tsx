@@ -35,42 +35,42 @@ export const Toast: React.FC<ToastProps> = ({
     setTimeout(() => onRemove(id), 300); // Wait for animation
   };
 
-  const getIcon = () => {
-    switch (type) {
-      case 'success':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'error':
-        return <XCircle className="w-5 h-5 text-red-500" />;
-      case 'warning':
-        return <AlertCircle className="w-5 h-5 text-yellow-500" />;
-      default:
-        return <AlertCircle className="w-5 h-5 text-blue-500" />;
-    }
-  };
-
   const getBackgroundColor = () => {
     switch (type) {
       case 'success':
-        return 'bg-green-50 border-green-200';
+        return 'bg-green-50 border-green-200 dark:bg-green-900/30 dark:border-green-800';
       case 'error':
-        return 'bg-red-50 border-red-200';
+        return 'bg-red-50 border-red-200 dark:bg-red-900/30 dark:border-red-800';
       case 'warning':
-        return 'bg-yellow-50 border-yellow-200';
+        return 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/30 dark:border-yellow-800';
       default:
-        return 'bg-blue-50 border-blue-200';
+        return 'bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-800';
     }
   };
 
   const getTextColor = () => {
     switch (type) {
       case 'success':
-        return 'text-green-800';
+        return 'text-green-800 dark:text-green-200';
       case 'error':
-        return 'text-red-800';
+        return 'text-red-800 dark:text-red-200';
       case 'warning':
-        return 'text-yellow-800';
+        return 'text-yellow-800 dark:text-yellow-200';
       default:
-        return 'text-blue-800';
+        return 'text-blue-800 dark:text-blue-200';
+    }
+  };
+
+  const getIcon = () => {
+    switch (type) {
+      case 'success':
+        return <CheckCircle className="w-5 h-5 text-green-500 dark:text-green-400" />;
+      case 'error':
+        return <XCircle className="w-5 h-5 text-red-500 dark:text-red-400" />;
+      case 'warning':
+        return <AlertCircle className="w-5 h-5 text-yellow-500 dark:text-yellow-400" />;
+      default:
+        return <AlertCircle className="w-5 h-5 text-blue-500 dark:text-blue-400" />;
     }
   };
 
@@ -90,7 +90,7 @@ export const Toast: React.FC<ToastProps> = ({
       </div>
       <button
         onClick={handleClose}
-        className="ml-3 text-gray-400 hover:text-gray-600 transition-colors"
+        className="ml-3 text-gray-400 hover:text-gray-600 transition-colors dark:text-gray-500 dark:hover:text-gray-300"
       >
         <X className="w-4 h-4" />
       </button>

@@ -8,7 +8,8 @@ import Navigation, { NavigationTab } from './components/layout/Navigation';
 import { AnalysisResponse, AnalysisHistoryItem } from './types';
 import { healthCheck } from './api';
 import { ToastProvider } from './components/ui/Toast';
-import { AuthProvider } from './components/auth/Auth';
+import { AuthProvider, useAuth } from './components/auth/Auth';
+import { ThemeProvider } from './components/ui/ThemeContext';
 import './App.css';
 
 // Define interface for upload form state
@@ -19,11 +20,12 @@ interface UploadFormState {
   error: string | null;
 }
 
-function App() {
+// Create a wrapper component that uses the auth context
+const AppContent: React.FC = () => {
+  const { isAuthenticated, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<NavigationTab>('upload');
   const [analysisResult, setAnalysisResult] = useState<AnalysisResponse | null>(null);
   const [selectedAnalysis, setSelectedAnalysis] = useState<AnalysisHistoryItem | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   // Lifted state to persist the entire upload form state across tab switches
   const [uploadFormState, setUploadFormState] = useState<UploadFormState>({
@@ -167,33 +169,56 @@ function App() {
     }
   };
 
+  // Show loading state while checking auth status
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg dark:text-white">Loading...</div>
+      </div>
+    );
+  }
+
+  // Show main app content only if authenticated
+  if (isAuthenticated) {
+    return (
+      <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
+        <Header backendStatus={backendStatus} />
+        
+        {/* Navigation */}
+        <Navigation 
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+        />
+        
+        {/* Main Content */}
+        <main className="flex-grow container mx-auto px-4 py-8">
+          {renderMainContent()}
+        </main>
+
+        {/* Footer */}
+        <footer className="bg-white border-t border-gray-200 py-6 dark:bg-gray-800 dark:border-gray-700">
+          <div className="container mx-auto px-4 text-center text-gray-600 text-sm dark:text-gray-400">
+            <p>
+              Financial Document Analyzer
+            </p>
+          </div>
+        </footer>
+      </div>
+    );
+  }
+
+  // If not authenticated, render nothing here (AuthProvider will show the auth overlay)
+  return null;
+};
+
+function App() {
   return (
     <ToastProvider>
-    <AuthProvider>
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header backendStatus={backendStatus} />
-      
-      {/* Navigation */}
-      <Navigation 
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-      />
-      
-      {/* Main Content */}
-      <main className="flex-grow container mx-auto px-4 py-8">
-        {renderMainContent()}
-      </main>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 py-6">
-        <div className="container mx-auto px-4 text-center text-gray-600 text-sm">
-          <p>
-            Financial Document Analyzer
-          </p>
-        </div>
-      </footer>
-    </div>
-    </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </ThemeProvider>
     </ToastProvider>
   );
 }

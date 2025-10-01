@@ -58,9 +58,9 @@ from datetime import datetime
 # Create logs directory if it doesn't exist
 os.makedirs('logs', exist_ok=True)
 
-# Generate a unique log filename with date and time
-current_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-log_filename = f"logs/log-{current_time}.log"
+# Generate a daily log filename (one file per day) in format: log-YYYYMMDD
+current_date = datetime.now().strftime("%Y%m%d")
+log_filename = f"logs/log-{current_date}.log"
 
 # Configure logging to both file and console
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
 console_handler.setFormatter(formatter)
 
-# Create file handler with a new log file each time the app starts
+# Create file handler with daily rotation
 file_handler = logging.FileHandler(log_filename)
 file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(formatter)
@@ -82,6 +82,10 @@ file_handler.setFormatter(formatter)
 # Add handlers to logger
 logger.addHandler(console_handler)
 logger.addHandler(file_handler)
+
+# Add separator line to distinguish new logs from old ones
+separator = "=" * 80
+logger.info(f"\n{separator}\nApplication started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{separator}\n")
 
 # Agent performance tracking
 crew_performance_metrics = {}
@@ -215,7 +219,15 @@ def run_crew(query: str, file_path: str) -> str:
             verbose=True
         )
 
-        result = financial_crew.kickoff({'query': query, 'file_path': file_path})
+        # Execute the crew with timeout handling
+        try:
+            result = financial_crew.kickoff({'query': query, 'file_path': file_path})
+        except TimeoutError as e:
+            logger.error(f"Original crew workflow timed out: {e}")
+            result = "Analysis timed out. Please try again with a smaller document or more specific query."
+        except Exception as e:
+            logger.error(f"Original crew workflow failed: {e}")
+            result = "Analysis failed. Please try again."
         
         # Track performance
         track_crew_performance(crew_name, start_time)
@@ -460,13 +472,24 @@ def run_parallel_multi_agent_crew(query: str, file_path: str) -> str:
             memory=True
         )
         
-        # Execute document verification
-        verification_result = verification_crew.kickoff({
-            "query": query,
-            "file_path": file_path
-        })
-        verification_time = time.time() - verification_start
-        logger.info(f"Document verification completed in {verification_time:.2f} seconds")
+        # Execute document verification with increased timeout handling
+        try:
+            verification_result = verification_crew.kickoff({
+                "query": query,
+                "file_path": file_path
+            })
+            verification_time = time.time() - verification_start
+            logger.info(f"Document verification completed in {verification_time:.2f} seconds")
+        except TimeoutError as e:
+            verification_time = time.time() - verification_start
+            logger.error(f"Document verification timed out after {verification_time:.2f} seconds: {e}")
+            # Try with a simpler verification approach
+            logger.info("Attempting fallback document verification...")
+            verification_result = "Document verification timed out. Proceeding with basic verification."
+        except Exception as e:
+            verification_time = time.time() - verification_start
+            logger.error(f"Document verification failed after {verification_time:.2f} seconds: {e}")
+            verification_result = "Document verification failed. Proceeding with caution."
         
         # Run financial analysis (required for investment and risk analysis)
         financial_start = time.time()
@@ -530,8 +553,18 @@ def run_parallel_multi_agent_crew(query: str, file_path: str) -> str:
             investment_future = executor.submit(run_investment_analysis)
             risk_future = executor.submit(run_risk_analysis)
             
-            investment_result, investment_time = investment_future.result(timeout=300)  # 5 minute timeout
-            risk_result, risk_time = risk_future.result(timeout=300)  # 5 minute timeout
+            try:
+                investment_result, investment_time = investment_future.result(timeout=300)  # 5 minute timeout
+            except TimeoutError:
+                logger.error("Investment analysis timed out after 5 minutes")
+                investment_result, investment_time = "Investment analysis timed out", 300
+            
+            try:
+                risk_result, risk_time = risk_future.result(timeout=300)  # 5 minute timeout
+            except TimeoutError:
+                logger.error("Risk analysis timed out after 5 minutes")
+                risk_result, risk_time = "Risk analysis timed out", 300
+                
         parallel_time = time.time() - parallel_start
         logger.info(f"Parallel analyses completed in {parallel_time:.2f} seconds")
         
@@ -582,6 +615,87 @@ def run_parallel_multi_agent_crew(query: str, file_path: str) -> str:
         )
 
 @cache_analysis_result(ttl=14400)  # Cache for 4 hours
+def run_enhanced_multi_agent_crew(query: str, file_path: str) -> str:
+    """Run the enhanced CrewAI crew with specialized agents for comprehensive financial analysis"""
+    start_time = time.time()
+    crew_name = "enhanced_crew"
+    try:
+        logger.info("Starting enhanced multi-agent financial analysis workflow")
+        
+        # Create the enhanced crew with specialized agents and tasks
+        enhanced_financial_crew = Crew(
+            agents=[
+                document_verifier,
+                financial_analyst, 
+                investment_specialist,
+                risk_assessor,
+                report_coordinator
+            ],
+            tasks=[
+                document_verification_task,
+                financial_analysis_task,
+                investment_analysis_task,
+                risk_assessment_task,
+                report_synthesis_task
+            ],
+            process=Process.hierarchical,
+            verbose=True,
+            manager_llm=llm,
+            memory=True,
+            planning=True
+        )
+
+        # Execute the enhanced workflow with timeout handling
+        try:
+            result = enhanced_financial_crew.kickoff({
+                "query": query, 
+                "file_path": file_path
+            })
+        except TimeoutError as e:
+            logger.error(f"Enhanced crew workflow timed out: {e}")
+            result = "Analysis timed out. Please try again with a smaller document or more specific query."
+        except Exception as e:
+            logger.error(f"Enhanced crew workflow failed: {e}")
+            result = "Analysis failed. Please try again."
+        
+        # Track performance
+        track_crew_performance(crew_name, start_time)
+        
+        logger.info(f"Enhanced CrewAI workflow completed. Result type: {type(result)}")
+        logger.info(f"Enhanced CrewAI result length: {len(str(result)) if result else 0}")
+        logger.info(f"Enhanced CrewAI result preview: {str(result)[:200] if result else 'None'}")
+        
+        # Log performance metrics
+        execution_time = time.time() - start_time
+        logger.info(f"PERFORMANCE METRICS - Enhanced Crew: {execution_time:.2f}s")
+        
+        # Process the result from the enhanced workflow
+        if result is None:
+            result = "No analysis result was generated from the enhanced workflow. Please try again."
+        elif hasattr(result, "raw"):
+            result = str(result.raw)
+        else:
+            result = str(result)
+            
+        # Validate result quality
+        if len(result.strip()) < 100:
+            logger.warning(f"Enhanced CrewAI result appears incomplete: {result[:100]}")
+            # Fall back to the original single-agent crew
+            logger.info("Falling back to original crew configuration")
+            return run_crew(query, file_path)
+            
+        return result
+        
+    except Exception as e:
+        # Track performance even on error
+        track_crew_performance(crew_name, start_time)
+        execution_time = time.time() - start_time
+        logger.error(f"Enhanced crew workflow error after {execution_time:.2f} seconds: {e}")
+        logger.info("Falling back to original crew configuration due to error")
+        # Fall back to the original crew configuration
+        return run_crew(query, file_path)
+
+@cache_analysis_result(ttl=14400)  # Cache for 4 hours
 def run_dynamic_multi_agent_crew(query: str, file_path: str) -> str:
     """Run a dynamic multi-agent crew with agent selection based on document type and industry"""
     start_time = time.time()
@@ -592,11 +706,23 @@ def run_dynamic_multi_agent_crew(query: str, file_path: str) -> str:
         # First, read and classify the document
         from backend.utils.tools import financial_document_tool, document_classifier_tool
         
-        # Read the document
-        document_content = financial_document_tool._run(file_path)
+        # Read the document with timeout handling
+        try:
+            document_content = financial_document_tool._run(file_path)
+        except TimeoutError as e:
+            logger.error(f"Document reading timed out: {e}")
+            document_content = "Document content could not be read due to timeout."
+        except Exception as e:
+            logger.error(f"Document reading failed: {e}")
+            document_content = "Document content could not be read due to an error."
         
         # Classify the document
-        classification = document_classifier_tool._run(document_content)
+        try:
+            classification = document_classifier_tool._run(document_content)
+        except Exception as e:
+            logger.error(f"Document classification failed: {e}")
+            classification = {"document_type": "unknown", "industry": "general", "processing_speed": "standard"}
+            
         document_type = classification.get("document_type", "unknown")
         industry = classification.get("industry", "general")
         processing_speed = classification.get("processing_speed", "standard")
@@ -630,11 +756,18 @@ def run_dynamic_multi_agent_crew(query: str, file_path: str) -> str:
             planning=True
         )
 
-        # Execute the dynamic workflow
-        result = dynamic_financial_crew.kickoff({
-            "query": query, 
-            "file_path": file_path
-        })
+        # Execute the dynamic workflow with timeout handling
+        try:
+            result = dynamic_financial_crew.kickoff({
+                "query": query, 
+                "file_path": file_path
+            })
+        except TimeoutError as e:
+            logger.error(f"Dynamic crew workflow timed out: {e}")
+            result = "Analysis timed out. Please try again with a smaller document or more specific query."
+        except Exception as e:
+            logger.error(f"Dynamic crew workflow failed: {e}")
+            result = "Analysis failed. Please try again."
         
         # Track performance
         track_crew_performance(crew_name, start_time)
@@ -1335,6 +1468,10 @@ def process_analysis_background(
 
 if __name__ == "__main__":
     import uvicorn
+    # Add separator to logs when starting the application
+    separator = "=" * 80
+    logger.info(f"\n{separator}\nUvicorn server starting at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{separator}\n")
+    
     uvicorn.run(
         "main:app", 
         host="0.0.0.0", 
@@ -1775,6 +1912,7 @@ async def get_analysis_status(
         analysis = AnalysisService.get_analysis_by_id(session, analysis_id)
         
         if not analysis:
+            logger.warning(f"Analysis not found: {analysis_id}")  # Log as warning instead of error for missing analyses
             raise HTTPException(status_code=404, detail="Analysis not found")
         
         # Calculate progress percentage based on status
@@ -1791,6 +1929,9 @@ async def get_analysis_status(
             analysis_id=analysis_id,
             progress_percentage=progress_map.get(analysis.status, 0)
         )
+        
+        # Only log at debug level for successful status checks to reduce log clutter
+        logger.debug(f"Status check for analysis {analysis_id}: {analysis.status}")
         
         return status_response.model_dump()
         

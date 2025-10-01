@@ -143,11 +143,11 @@ const Documents: React.FC<DocumentsProps> = ({ onViewDocument }) => {
   if (!user) {
     return (
       <div className="text-center py-12">
-        <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-          <FileText className="w-10 h-10 text-gray-400" />
+        <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4 dark:bg-gray-800">
+          <FileText className="w-10 h-10 text-gray-400 dark:text-gray-500" />
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Sign in to view your documents</h3>
-        <p className="text-gray-500">Please sign in to access your uploaded documents.</p>
+        <h3 className="text-lg font-medium text-gray-900 mb-2 dark:text-white">Sign in to view your documents</h3>
+        <p className="text-gray-500 dark:text-gray-400">Please sign in to access your uploaded documents.</p>
       </div>
     );
   }
@@ -157,14 +157,14 @@ const Documents: React.FC<DocumentsProps> = ({ onViewDocument }) => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Document Management</h2>
-          <p className="text-gray-500 mt-1">{totalCount} total documents</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Document Management</h2>
+          <p className="text-gray-500 mt-1 dark:text-gray-400">{totalCount} total documents</p>
         </div>
         
         <button
           onClick={() => loadDocuments(true)}
           disabled={loading}
-          className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+          className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
         >
           <Download className="w-4 h-4 mr-2" />
           Refresh
@@ -172,17 +172,17 @@ const Documents: React.FC<DocumentsProps> = ({ onViewDocument }) => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
+      <div className="bg-white rounded-lg border border-gray-200 p-4 dark:bg-gray-800 dark:border-gray-700">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 dark:text-gray-500" />
             <input
               type="text"
               placeholder="Search documents..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="pl-10 w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />
           </div>
@@ -192,7 +192,7 @@ const Documents: React.FC<DocumentsProps> = ({ onViewDocument }) => {
             <button
               onClick={handleSearch}
               disabled={isSearching}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-700"
             >
               {isSearching ? (
                 <>
@@ -205,7 +205,7 @@ const Documents: React.FC<DocumentsProps> = ({ onViewDocument }) => {
             </button>
             <button
               onClick={handleResetFilters}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600"
             >
               Reset
             </button>
@@ -215,7 +215,7 @@ const Documents: React.FC<DocumentsProps> = ({ onViewDocument }) => {
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded dark:bg-red-900/20 dark:border-red-800 dark:text-red-200">
           {error}
         </div>
       )}
@@ -223,41 +223,41 @@ const Documents: React.FC<DocumentsProps> = ({ onViewDocument }) => {
       {/* Loading State */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          <span className="ml-2 text-gray-600">Loading documents...</span>
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400" />
+          <span className="ml-2 text-gray-600 dark:text-gray-400">Loading documents...</span>
         </div>
       ) : (
         <>
           {/* Document List */}
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden dark:bg-gray-800 dark:border-gray-700">
             {documents.length === 0 ? (
               <div className="p-12 text-center">
-                <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4 dark:text-gray-500" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2 dark:text-white">
                   {searchTerm ? 'No documents found' : 'No documents uploaded'}
                 </h3>
-                <p className="text-gray-500">
+                <p className="text-gray-500 dark:text-gray-400">
                   {searchTerm 
                     ? 'Try adjusting your search terms.' 
                     : 'Upload documents through the analysis page to get started.'}
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-200">
+              <div className="divide-y divide-gray-200 dark:divide-gray-700">
                 {documents.map((document) => (
-                  <div key={document.id} className="p-6 hover:bg-gray-50 transition-colors">
+                  <div key={document.id} className="p-6 hover:bg-gray-50 transition-colors dark:hover:bg-gray-700/50">
                     <div className="flex items-center justify-between">
                       <div className="flex items-start space-x-4">
                         <div className="flex-shrink-0">
-                          <FileText className="w-10 h-10 text-blue-600" />
+                          <FileText className="w-10 h-10 text-blue-600 dark:text-blue-400" />
                         </div>
                         
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-medium text-gray-900 truncate">
+                          <h3 className="text-sm font-medium text-gray-900 truncate dark:text-white">
                             {document.original_filename}
                           </h3>
                           
-                          <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
+                          <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
                             <span>
                               Size: {formatFileSize(document.file_size)}
                             </span>
@@ -271,7 +271,7 @@ const Documents: React.FC<DocumentsProps> = ({ onViewDocument }) => {
                             </span>
                             
                             {document.is_processed && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
                                 Processed
                               </span>
                             )}
@@ -283,7 +283,7 @@ const Documents: React.FC<DocumentsProps> = ({ onViewDocument }) => {
                         {onViewDocument && (
                           <button
                             onClick={() => onViewDocument(document)}
-                            className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
+                            className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600"
                           >
                             <Eye className="w-3 h-3 mr-1" />
                             View
@@ -292,7 +292,7 @@ const Documents: React.FC<DocumentsProps> = ({ onViewDocument }) => {
                         
                         <button
                           onClick={() => handleDeleteDocument(document.id, document.original_filename)}
-                          className="inline-flex items-center px-3 py-1.5 border border-red-300 shadow-sm text-xs font-medium rounded text-red-700 bg-white hover:bg-red-50"
+                          className="inline-flex items-center px-3 py-1.5 border border-red-300 shadow-sm text-xs font-medium rounded text-red-700 bg-white hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:bg-gray-700 dark:hover:bg-red-900/30"
                         >
                           <Trash2 className="w-3 h-3 mr-1" />
                           Delete
@@ -308,7 +308,7 @@ const Documents: React.FC<DocumentsProps> = ({ onViewDocument }) => {
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-700">
+              <div className="text-sm text-gray-700 dark:text-gray-400">
                 Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount} results
               </div>
               
@@ -316,20 +316,20 @@ const Documents: React.FC<DocumentsProps> = ({ onViewDocument }) => {
                 <button
                   onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                   disabled={currentPage === 1}
-                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   <ChevronLeft className="w-4 h-4 mr-1" />
                   Previous
                 </button>
                 
-                <span className="text-sm text-gray-700">
+                <span className="text-sm text-gray-700 dark:text-gray-400">
                   Page {currentPage} of {totalPages}
                 </span>
                 
                 <button
                   onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                   disabled={currentPage === totalPages}
-                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   Next
                   <ChevronRight className="w-4 h-4 ml-1" />

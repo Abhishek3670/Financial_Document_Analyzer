@@ -59,7 +59,7 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
   const formatAnalysis = (analysis: string) => {
     // Display raw analysis result without any formatting
     return (
-      <div className="whitespace-pre-wrap text-gray-700 font-mono text-sm p-4 bg-gray-50 rounded-lg border">
+      <div className="whitespace-pre-wrap text-gray-700 font-mono text-sm p-4 bg-gray-50 rounded-lg border dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
         {analysis || 'No analysis result available'}
       </div>
     );
@@ -143,7 +143,7 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
       <div className="flex items-center justify-between mb-6">
         <button
           onClick={onNewAnalysis}
-          className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 transition-colors"
+          className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 transition-colors dark:text-blue-400 dark:hover:text-blue-300"
         >
           <ArrowLeft className="w-5 h-5" />
           <span>New Analysis</span>
@@ -151,11 +151,11 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
         
         <div className="flex items-center space-x-4">
           {hasError ? (
-            <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">
+            <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium dark:bg-red-900/30 dark:text-red-200">
               ✗ Analysis Failed
             </span>
           ) : (
-            <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+            <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium dark:bg-green-900/30 dark:text-green-200">
               ✓ Analysis Complete
             </span>
           )}
@@ -164,12 +164,12 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
 
       {/* Error Message */}
       {hasError && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-800">
           <div className="flex items-start">
-            <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+            <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0 dark:text-red-400" />
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">{errorInfo.title}</h3>
-              <div className="mt-1 text-sm text-red-700">
+              <h3 className="text-sm font-medium text-red-800 dark:text-red-200">{errorInfo.title}</h3>
+              <div className="mt-1 text-sm text-red-700 dark:text-red-300">
                 <p>{errorInfo.message}</p>
                 {errorInfo.suggestion && <p className="mt-2">{errorInfo.suggestion}</p>}
                 {errorInfo.link && (
@@ -179,7 +179,7 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
                       href={errorInfo.link} 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="underline text-red-800 hover:text-red-900"
+                      className="underline text-red-800 hover:text-red-900 dark:text-red-300 dark:hover:text-red-200"
                     >
                       OpenAI Error Codes Documentation
                     </a>
@@ -196,12 +196,12 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
       <div className="card mb-6">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-4">
-            <FileText className="w-12 h-12 text-blue-600" />
+            <FileText className="w-12 h-12 text-blue-600 dark:text-blue-400" />
             <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">
+              <h2 className="text-xl font-bold text-gray-900 mb-1 dark:text-white">
                 {result.file_info?.filename || 'Unknown Document'}
               </h2>
-              <div className="flex items-center space-x-4 text-sm text-gray-600">
+              <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
                 <div className="flex items-center space-x-1">
                   <Database className="w-4 h-4" />
                   <span>{result.file_info?.size_mb || 0} MB</span>
@@ -227,9 +227,9 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
         </div>
         
         {/* Query */}
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <h4 className="text-sm font-medium text-gray-900 mb-2">Analysis Query:</h4>
-          <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <h4 className="text-sm font-medium text-gray-900 mb-2 dark:text-white">Analysis Query:</h4>
+          <p className="text-gray-700 bg-gray-50 p-3 rounded-lg dark:bg-gray-700 dark:text-gray-200">
             {result.query || 'No query provided'}
           </p>
         </div>
@@ -238,9 +238,9 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
       {/* Analysis Results */}
       {!hasError && (
         <div className="card">
-          <div className="border-b border-gray-200 pb-4 mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Financial Analysis</h2>
-            <p className="text-gray-600 mt-1">AI-powered insights and recommendations</p>
+          <div className="border-b border-gray-200 pb-4 mb-6 dark:border-gray-700">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Financial Analysis</h2>
+            <p className="text-gray-600 mt-1 dark:text-gray-400">AI-powered insights and recommendations</p>
           </div>
           
           <div className="prose prose-lg max-w-none">
@@ -248,19 +248,19 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
           </div>
           
           {/* Metadata */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
+          <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div>
-                <span className="font-medium text-gray-900">Processing ID:</span>
-                <p className="text-gray-600 font-mono">{result.metadata?.processing_id || result.analysis_id}</p>
+                <span className="font-medium text-gray-900 dark:text-white">Processing ID:</span>
+                <p className="text-gray-600 font-mono dark:text-gray-400">{result.metadata?.processing_id || result.analysis_id}</p>
               </div>
               <div>
-                <span className="font-medium text-gray-900">File Type:</span>
-                <p className="text-gray-600">{result.metadata?.file_type || 'PDF'}</p>
+                <span className="font-medium text-gray-900 dark:text-white">File Type:</span>
+                <p className="text-gray-600 dark:text-gray-400">{result.metadata?.file_type || 'PDF'}</p>
               </div>
               <div>
-                <span className="font-medium text-gray-900">Processed:</span>
-                <p className="text-gray-600">
+                <span className="font-medium text-gray-900 dark:text-white">Processed:</span>
+                <p className="text-gray-600 dark:text-gray-400">
                   {result.metadata?.analysis_timestamp ? 
                     new Date(result.metadata.analysis_timestamp).toLocaleString() : 
                     'Unknown'
