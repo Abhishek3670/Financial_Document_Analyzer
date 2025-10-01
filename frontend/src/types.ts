@@ -22,6 +22,7 @@ export interface AnalysisResponse {
   status: string;
   result: string;
   analysis?: string;
+  error_message?: string;  // Add this field
   created_at: string;
   completed_at?: string;
   document?: any;
@@ -59,6 +60,7 @@ export interface AnalysisHistoryItem {
   analysis_id?: string;
   query: string;
   status: string;
+  error_message?: string;  // Add this field
   created_at: string;
   completed_at?: string;
   document?: {

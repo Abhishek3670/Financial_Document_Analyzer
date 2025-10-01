@@ -53,9 +53,14 @@ from backend.utils.redis_cache import cache_result, cache_llm_result, cache_anal
 
 # Setup logging
 import logging.handlers
+from datetime import datetime
 
 # Create logs directory if it doesn't exist
 os.makedirs('logs', exist_ok=True)
+
+# Generate a unique log filename with date and time
+current_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+log_filename = f"logs/log-{current_time}.log"
 
 # Configure logging to both file and console
 logger = logging.getLogger(__name__)
@@ -69,9 +74,8 @@ console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
 console_handler.setFormatter(formatter)
 
-# Create file handler
-file_handler = logging.handlers.RotatingFileHandler(
-    'logs/app.log', maxBytes=10*1024*1024, backupCount=5)  # 10MB files, max 5 backups
+# Create file handler with a new log file each time the app starts
+file_handler = logging.FileHandler(log_filename)
 file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(formatter)
 
@@ -1282,9 +1286,27 @@ def process_analysis_background(
             logger.error(f"Failed to mark analysis as failed in database: {db_error}")
     except Exception as e:
         logger.error(f"Error in background analysis processing: {e}")
+        error_message = str(e)
+        
+        # Make error messages more user-friendly
+        if "insufficient_quota" in error_message or "429" in error_message:
+            error_message = "OpenAI API quota exceeded. Please check your OpenAI plan and billing details. For more information, visit https://platform.openai.com/docs/guides/error-codes/api-errors"
+        elif "rate limit" in error_message.lower():
+            error_message = "API rate limit exceeded. Please try again later."
+        elif "timeout" in error_message.lower():
+            error_message = "Request timed out. Please try again with a simpler query or check your network connection."
+        elif "authentication" in error_message.lower() or "unauthorized" in error_message.lower():
+            error_message = "Authentication failed. Please check your API credentials."
+        elif "permission" in error_message.lower() or "forbidden" in error_message.lower():
+            error_message = "Access forbidden. Please check your permissions."
+        elif "not found" in error_message.lower():
+            error_message = "Resource not found. The requested resource may have been deleted."
+        elif "network" in error_message.lower() or "connection" in error_message.lower():
+            error_message = "Network error. Please check your internet connection and try again."
+        
         # Mark analysis as failed
         try:
-            AnalysisService.fail_analysis(session, analysis_id, str(e))
+            AnalysisService.fail_analysis(session, analysis_id, error_message)
             session.commit()
         except Exception as db_error:
             logger.error(f"Failed to mark analysis as failed in database: {db_error}")
@@ -1451,8 +1473,13 @@ async def get_analysis_by_id(
         analysis_resp = AnalysisResponse.from_orm(analysis)
         analysis_resp.document = document_info
         
+        # Convert to dict and include error_message if present
+        response_dict = analysis_resp.model_dump()
+        if hasattr(analysis, 'error_message') and analysis.error_message:
+            response_dict['error_message'] = analysis.error_message
+            
         return {
-            "analysis": analysis_resp.model_dump(),
+            "analysis": response_dict,
             "document": document_info.model_dump() if document_info else None
         }
         
