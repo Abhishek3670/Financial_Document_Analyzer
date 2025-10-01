@@ -14,12 +14,12 @@ from datetime import datetime, timedelta
 import logging
 from typing import List, Tuple, Optional
 
-from models import User, Document, Analysis, AnalysisHistory
-from models import DocumentResponse, AnalysisResponse, AnalysisHistoryResponse
-from database import get_database_manager
+from backend.models.models import User, Document, Analysis, AnalysisHistory
+from backend.models.models import DocumentResponse, AnalysisResponse, AnalysisHistoryResponse
+from backend.core.database import get_database_manager
 
 # Import Redis cache
-from redis_cache import cache_result, cache_database_query
+from backend.utils.redis_cache import cache_result, cache_database_query
 
 logger = logging.getLogger(__name__)
 
@@ -316,7 +316,20 @@ class DocumentService:
             # Log the deletion attempt
             logger.info(f"Deleting document {document_id} for user {user_id}")
             
-            # Delete the document
+            # Explicitly delete related analyses first to avoid foreign key constraint violations
+            related_analyses = session.query(Analysis).filter(Analysis.document_id == document_id).all()
+            for analysis in related_analyses:
+                # First delete related history records
+                history_records = session.query(AnalysisHistory).filter(
+                    AnalysisHistory.analysis_id == analysis.id
+                ).all()
+                for record in history_records:
+                    session.delete(record)
+                session.delete(analysis)
+            
+            logger.info(f"Deleted {len(related_analyses)} related analyses for document {document_id}")
+            
+            # Now delete the document
             session.delete(document)
             session.flush()
             

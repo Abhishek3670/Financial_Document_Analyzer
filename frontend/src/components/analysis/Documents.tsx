@@ -10,8 +10,8 @@ import {
   Eye,
   Loader2
 } from 'lucide-react';
-import { useAuth } from './Auth';
-import { documentAPI, Document } from '../api';
+import { useAuth } from './../auth/Auth';
+import { documentAPI, Document } from '../../api';
 
 interface DocumentsProps {
   onViewDocument?: (document: Document) => void;

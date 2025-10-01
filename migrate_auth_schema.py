@@ -4,8 +4,8 @@ Migration script to add authentication columns to existing database
 """
 import sqlite3
 import os
-from database import init_database, get_database_manager
-from models import Base
+from backend.core.database import init_database, get_database_manager
+from backend.models.models import Base
 import logging
 
 logging.basicConfig(level=logging.INFO)

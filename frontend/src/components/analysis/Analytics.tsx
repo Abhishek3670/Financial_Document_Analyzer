@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import * as api from '../api';
-import { Analysis } from '../api'; // Import the Analysis type
+import * as api from '../../api';
+import { Analysis } from '../../api'; // Import the Analysis type
 
 // Utility functions for date formatting
 const formatRelativeTime = (dateString: string): string => {

@@ -7,9 +7,9 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import logging
 
-from database import get_db_session
-from auth import auth_service
-from models import User
+from backend.core.database import get_db_session
+from backend.auth.auth import auth_service
+from backend.models.models import User
 
 logger = logging.getLogger(__name__)
 

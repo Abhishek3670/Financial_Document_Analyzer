@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, FileText, X, Loader2, AlertCircle, Save } from 'lucide-react';
-import type { AnalysisResponse } from '../types';
-import { documentAPI } from '../api';
+import type { AnalysisResponse } from '../../types';
+import { documentAPI } from '../../api';
 
 // Define interface for upload form state
 interface UploadFormState {

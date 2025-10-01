@@ -172,8 +172,8 @@ fi
 # Initialize database
 echo "🔧 Initializing production database..."
 python -c "
-from database import init_database
-from models import *
+from backend.core.database import init_database
+from backend.models.models import *
 import os
 
 # Set production environment
@@ -286,7 +286,7 @@ Handles schema changes and data migrations
 import os
 import sys
 from sqlalchemy import create_engine, text
-from database import get_database_manager
+from backend.core.database import get_database_manager
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -359,8 +359,8 @@ Verifies database connection and basic operations
 import os
 import sys
 import time
-from database import get_database_manager
-from models import User
+from backend.core.database import get_database_manager
+from backend.models.models import User
 import logging
 
 logging.basicConfig(level=logging.INFO)

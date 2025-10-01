@@ -14,8 +14,8 @@ from sqlalchemy.exc import IntegrityError
 import bcrypt
 import logging
 
-from models import User
-from models import (
+from backend.models.models import User
+from backend.models.models import (
     UserRegisterRequest, UserLoginRequest, UserResponse, 
     TokenResponse, PasswordChangeRequest, PasswordResetRequest
 )

@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from typing import Generator
 import sqlite3
 
-from models import Base, User, Document, Analysis, AnalysisHistory
+from backend.models.models import Base, User, Document, Analysis, AnalysisHistory
 
 # Setup logging
 logger = logging.getLogger(__name__)

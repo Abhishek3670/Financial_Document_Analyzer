@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FileText, Download, ArrowLeft, Clock, Database, AlertCircle } from 'lucide-react';
-import type { AnalysisResponse } from '../types';
-import { documentAPI } from '../api';
+import type { AnalysisResponse } from '../../types';
+import { documentAPI } from '../../api';
 
 interface AnalysisResultsProps {
   result: AnalysisResponse;

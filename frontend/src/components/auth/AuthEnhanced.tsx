@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-import { authAPI, type User } from '../api';
+import { authAPI, type User } from '../../api';
 import { Eye, EyeOff, CheckCircle, XCircle, AlertCircle, User as UserIcon, Mail, Lock, UserPlus } from 'lucide-react';
 import { useAuth } from './Auth';
 import { PasswordResetFlow } from './AuthPasswordReset';

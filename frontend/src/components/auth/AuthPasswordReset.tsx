@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, Lock, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
-import { authAPI } from '../api';
+import { authAPI } from '../../api';
 
 interface ForgotPasswordFormData {
   email: string;
