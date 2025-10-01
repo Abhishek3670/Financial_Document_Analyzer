@@ -1912,6 +1912,7 @@ async def get_analysis_status(
         analysis = AnalysisService.get_analysis_by_id(session, analysis_id)
         
         if not analysis:
+            logger.warning(f"Analysis not found: {analysis_id}")  # Log as warning instead of error for missing analyses
             raise HTTPException(status_code=404, detail="Analysis not found")
         
         # Calculate progress percentage based on status
@@ -1928,6 +1929,9 @@ async def get_analysis_status(
             analysis_id=analysis_id,
             progress_percentage=progress_map.get(analysis.status, 0)
         )
+        
+        # Only log at debug level for successful status checks to reduce log clutter
+        logger.debug(f"Status check for analysis {analysis_id}: {analysis.status}")
         
         return status_response.model_dump()
         

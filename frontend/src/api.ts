@@ -349,8 +349,8 @@ export const documentAPI = {
   pollAnalysisStatus: async (
     analysisId: string,
     onProgress?: (progress: number) => void,
-    interval: number = 2000, // 2 seconds
-    maxAttempts: number = 450 // Increased to 15 minutes (450 * 2 seconds)
+    interval: number = 5000, // Increased from 2000ms to 5000ms (5 seconds) to reduce backend load
+    maxAttempts: number = 180 // Adjusted to maintain 15 minutes timeout (180 * 5 seconds)
   ): Promise<{ status: string; analysis?: any }> => {
     let attempts = 0;
     
