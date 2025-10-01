@@ -55,134 +55,14 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
       setIsDownloading(false);
     }
   };
+
   const formatAnalysis = (analysis: string) => {
-    // Handle empty or null analysis
-    if (!analysis || analysis.trim() === '') {
-      return (
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-          <div className="flex">
-            <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 mr-3 flex-shrink-0" />
-            <div>
-              <h4 className="text-yellow-800 font-medium">Analysis Incomplete</h4>
-              <p className="text-yellow-700 text-sm mt-1">
-                The analysis result is empty or incomplete. This may be due to a processing error.
-                Please try analyzing the document again.
-              </p>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // Handle very short or corrupted analysis
-    if (analysis.trim().length < 50) {
-      return (
-        <div className="space-y-4">
-          <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded">
-            <div className="flex">
-              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 mr-3 flex-shrink-0" />
-              <div>
-                <h4 className="text-red-800 font-medium">Analysis Data Issue</h4>
-                <p className="text-red-700 text-sm mt-1">
-                  The analysis appears to be incomplete or corrupted. Please try re-analyzing the document.
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          {/* Still show whatever data we have */}
-          <div className="bg-gray-50 p-4 rounded border">
-            <h4 className="font-medium text-gray-800 mb-2">Raw Analysis Output:</h4>
-            <pre className="text-sm text-gray-600 whitespace-pre-wrap font-mono bg-white p-3 rounded border">
-              {analysis}
-            </pre>
-          </div>
-        </div>
-      );
-    }
-
-    // Split by double newlines to create paragraphs
-    const paragraphs = analysis.split('\n\n').filter(p => p.trim());
-    
-    return paragraphs.map((paragraph, index) => {
-      // Check if it's a header (starts with ##, **, or is all caps)
-      if (paragraph.startsWith('##')) {
-        return (
-          <h3 key={index} className="text-xl font-bold text-gray-900 mt-6 mb-3">
-            {paragraph.replace(/^##\s*/, '')}
-          </h3>
-        );
-      }
-      
-      if (paragraph.startsWith('**') && paragraph.endsWith('**')) {
-        return (
-          <h4 key={index} className="text-lg font-semibold text-gray-800 mt-4 mb-2">
-            {paragraph.replace(/^\*\*/, '').replace(/\*\*$/, '')}
-          </h4>
-        );
-      }
-      
-      // Check for markdown headers
-      if (paragraph.startsWith('#')) {
-        const headerLevel = paragraph.match(/^#+/)?.[0].length || 1;
-        const text = paragraph.replace(/^#+\s*/, '');
-        
-        if (headerLevel === 1) {
-          return (
-            <h2 key={index} className="text-2xl font-bold text-gray-900 mt-8 mb-4">
-              {text}
-            </h2>
-          );
-        } else if (headerLevel === 2) {
-          return (
-            <h3 key={index} className="text-xl font-bold text-gray-900 mt-6 mb-3">
-              {text}
-            </h3>
-          );
-        } else {
-          return (
-            <h4 key={index} className="text-lg font-semibold text-gray-800 mt-4 mb-2">
-              {text}
-            </h4>
-          );
-        }
-      }
-      
-      // Check for bullet points
-      if (paragraph.includes('- ')) {
-        const items = paragraph.split('- ').filter(item => item.trim());
-        return (
-          <ul key={index} className="list-disc list-inside space-y-1 mb-4">
-            {items.map((item, itemIndex) => (
-              <li key={itemIndex} className="text-gray-700">
-                {item.trim()}
-              </li>
-            ))}
-          </ul>
-        );
-      }
-      
-      // Check for numbered lists
-      if (/^\d+\./.test(paragraph.trim())) {
-        const items = paragraph.split(/\d+\./).filter(item => item.trim());
-        return (
-          <ol key={index} className="list-decimal list-inside space-y-1 mb-4">
-            {items.map((item, itemIndex) => (
-              <li key={itemIndex} className="text-gray-700">
-                {item.trim()}
-              </li>
-            ))}
-          </ol>
-        );
-      }
-      
-      // Regular paragraph
-      return (
-        <p key={index} className="text-gray-700 mb-4 leading-relaxed">
-          {paragraph}
-        </p>
-      );
-    });
+    // Display raw analysis result without any formatting
+    return (
+      <div className="whitespace-pre-wrap text-gray-700 font-mono text-sm p-4 bg-gray-50 rounded-lg border">
+        {analysis || 'No analysis result available'}
+      </div>
+    );
   };
 
   return (

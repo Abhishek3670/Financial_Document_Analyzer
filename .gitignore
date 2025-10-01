@@ -63,3 +63,6 @@ final_code_clean/
 output/
 financial_analyzer.db
 financial_analyzer.db-wal
+logs/app.log
+project_report.txt
+logs/app.log

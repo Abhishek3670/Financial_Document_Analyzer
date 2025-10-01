@@ -20,6 +20,11 @@ const api = axios.create({
   },
 });
 
+// Create a separate axios instance for health checks without custom headers
+const healthApi = axios.create({
+  baseURL: API_BASE_URL,
+});
+
 // Add auth token and session ID to requests
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('auth_token');
@@ -639,7 +644,8 @@ export const healthAPI = {
     database_info: any;
   }> => {
     try {
-      const response = await api.get('/health');
+      // Use healthApi instance without custom headers to avoid CORS preflight issues
+      const response = await healthApi.get('/health');
       return response.data;
     } catch (error: any) {
       const message = error.response?.data?.detail || 'Health check failed';
@@ -655,7 +661,8 @@ export const healthAPI = {
     database: any;
   }> => {
     try {
-      const response = await api.get('/');
+      // Use healthApi instance without custom headers to avoid CORS preflight issues
+      const response = await healthApi.get('/');
       return response.data;
     } catch (error: any) {
       const message = error.response?.data?.detail || 'System info failed';

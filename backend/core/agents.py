@@ -150,7 +150,7 @@ financial_analyst = Agent(
     tools=[financial_document_tool, financial_search_tool],  # Use specialized financial search tool
     llm=llm,
     max_iter=4,
-    max_execution_time=180,  # Reduced from 240 to 180 seconds
+    max_execution_time=300,  # Increased from 180 to 300 seconds (5 minutes)
     allow_delegation=True
 )
 
@@ -185,7 +185,7 @@ investment_specialist = Agent(
     tools=[investment_analysis_tool, investment_search_tool],  # Use specialized investment search tool
     llm=llm,
     max_iter=4,
-    max_execution_time=150,  # Reduced from 240 to 150 seconds
+    max_execution_time=240,  # Increased from 150 to 240 seconds (4 minutes)
     allow_delegation=True
 )
 
@@ -221,7 +221,7 @@ risk_assessor = Agent(
     tools=[risk_assessment_tool, risk_search_tool],  # Use specialized risk search tool
     llm=llm,
     max_iter=4,
-    max_execution_time=150,  # Reduced from 240 to 150 seconds
+    max_execution_time=240,  # Increased from 150 to 240 seconds (4 minutes)
     allow_delegation=False  # Final specialist in the chain
 )
 
@@ -255,7 +255,7 @@ report_coordinator = Agent(
     tools=[search_tool, industry_search_tool],  # Use generic search and industry search tools
     llm=llm,
     max_iter=3,
-    max_execution_time=120,  # Reduced from 180 to 120 seconds
+    max_execution_time=180,  # Increased from 120 to 180 seconds (3 minutes)
     allow_delegation=False
 )
 
@@ -278,9 +278,9 @@ def create_dynamic_agents(document_type: str = "unknown", industry: str = "gener
     
     # Base execution times
     base_times = {
-        "fast": {"document_verifier": 30, "financial_analyst": 90, "investment_specialist": 75, "risk_assessor": 75, "report_coordinator": 60},
-        "standard": {"document_verifier": 60, "financial_analyst": 180, "investment_specialist": 150, "risk_assessor": 150, "report_coordinator": 120},
-        "detailed": {"document_verifier": 120, "financial_analyst": 300, "investment_specialist": 240, "risk_assessor": 240, "report_coordinator": 180}
+        "fast": {"document_verifier": 60, "financial_analyst": 240, "investment_specialist": 180, "risk_assessor": 180, "report_coordinator": 120},
+        "standard": {"document_verifier": 120, "financial_analyst": 300, "investment_specialist": 240, "risk_assessor": 240, "report_coordinator": 180},
+        "detailed": {"document_verifier": 180, "financial_analyst": 420, "investment_specialist": 360, "risk_assessor": 360, "report_coordinator": 240}
     }
     
     # Select execution times based on processing speed
