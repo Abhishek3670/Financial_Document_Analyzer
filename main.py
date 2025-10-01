@@ -58,9 +58,9 @@ from datetime import datetime
 # Create logs directory if it doesn't exist
 os.makedirs('logs', exist_ok=True)
 
-# Generate a unique log filename with date and time
-current_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-log_filename = f"logs/log-{current_time}.log"
+# Generate a daily log filename (one file per day) in format: log-YYYYMMDD
+current_date = datetime.now().strftime("%Y%m%d")
+log_filename = f"logs/log-{current_date}.log"
 
 # Configure logging to both file and console
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
 console_handler.setFormatter(formatter)
 
-# Create file handler with a new log file each time the app starts
+# Create file handler with daily rotation
 file_handler = logging.FileHandler(log_filename)
 file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(formatter)
@@ -82,6 +82,10 @@ file_handler.setFormatter(formatter)
 # Add handlers to logger
 logger.addHandler(console_handler)
 logger.addHandler(file_handler)
+
+# Add separator line to distinguish new logs from old ones
+separator = "=" * 80
+logger.info(f"\n{separator}\nApplication started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{separator}\n")
 
 # Agent performance tracking
 crew_performance_metrics = {}
@@ -1335,6 +1339,10 @@ def process_analysis_background(
 
 if __name__ == "__main__":
     import uvicorn
+    # Add separator to logs when starting the application
+    separator = "=" * 80
+    logger.info(f"\n{separator}\nUvicorn server starting at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{separator}\n")
+    
     uvicorn.run(
         "main:app", 
         host="0.0.0.0", 
