@@ -137,7 +137,25 @@ const FileUpload: React.FC<FileUploadProps> = ({
         fileInputRef.current.value = '';
       }
     } catch (err: any) {
-      const errorMessage = err.message || 'Analysis failed';
+      let errorMessage = err.message || 'Analysis failed';
+      
+      // Make error messages more user-friendly
+      if (errorMessage.includes('insufficient_quota') || errorMessage.includes('429')) {
+        errorMessage = 'OpenAI API quota exceeded. Please check your OpenAI plan and billing details. For more information, visit https://platform.openai.com/docs/guides/error-codes/api-errors';
+      } else if (errorMessage.toLowerCase().includes('rate limit')) {
+        errorMessage = 'API rate limit exceeded. Please try again later.';
+      } else if (errorMessage.toLowerCase().includes('timeout')) {
+        errorMessage = 'Request timed out. Please try again with a simpler query or check your network connection.';
+      } else if (errorMessage.toLowerCase().includes('authentication') || errorMessage.toLowerCase().includes('unauthorized')) {
+        errorMessage = 'Authentication failed. Please check your API credentials.';
+      } else if (errorMessage.toLowerCase().includes('permission') || errorMessage.toLowerCase().includes('forbidden')) {
+        errorMessage = 'Access forbidden. Please check your permissions.';
+      } else if (errorMessage.toLowerCase().includes('not found')) {
+        errorMessage = 'Resource not found. The requested resource may have been deleted.';
+      } else if (errorMessage.toLowerCase().includes('network') || errorMessage.toLowerCase().includes('connection')) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      }
+      
       onFormStateChange({ ...uploadFormState, error: errorMessage });
     } finally {
       setIsLoading(false);

@@ -20,6 +20,11 @@ const api = axios.create({
   },
 });
 
+// Create a separate axios instance for health checks without custom headers
+const healthApi = axios.create({
+  baseURL: API_BASE_URL,
+});
+
 // Add auth token and session ID to requests
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('auth_token');
@@ -36,18 +41,49 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle token expiration
+// Handle token expiration and other API errors
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user_data');
-      
     }
     return Promise.reject(error);
   }
 );
+
+// Enhanced error extraction function
+const extractErrorMessage = (error: any): string => {
+  // Handle network errors
+  if (!error.response) {
+    return 'Network error. Please check your internet connection.';
+  }
+  
+  // Handle different HTTP status codes
+  const { status, data } = error.response;
+  
+  switch (status) {
+    case 400:
+      return data?.detail || 'Bad request. Please check your input.';
+    case 401:
+      return 'Authentication failed. Please log in again.';
+    case 403:
+      return 'Access forbidden. You do not have permission to perform this action.';
+    case 404:
+      return 'Resource not found.';
+    case 429:
+      return 'Rate limit exceeded. Please try again later.';
+    case 500:
+      return data?.detail || 'Internal server error. Please try again later.';
+    case 502:
+    case 503:
+    case 504:
+      return 'Service temporarily unavailable. Please try again later.';
+    default:
+      return data?.detail || `An error occurred (HTTP ${status}).`;
+  }
+};
 
 // Types
 export interface User {
@@ -184,7 +220,7 @@ export const authAPI = {
 
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Registration failed';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
@@ -200,7 +236,7 @@ export const authAPI = {
 
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Login failed';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
@@ -222,7 +258,7 @@ export const authAPI = {
       const response = await api.get<User>('/auth/me');
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Failed to get user profile';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
@@ -236,7 +272,7 @@ export const authAPI = {
       
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Failed to update profile';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
@@ -246,7 +282,7 @@ export const authAPI = {
       const response = await api.post('/auth/change-password', data);
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Failed to change password';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
@@ -256,7 +292,7 @@ export const authAPI = {
       const response = await api.post('/auth/forgot-password', { email });
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Password reset request failed';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
@@ -269,12 +305,10 @@ export const authAPI = {
       });
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Password reset failed';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
-
-
 };
 
 // Document Analysis API
@@ -306,7 +340,7 @@ export const documentAPI = {
 
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Document upload and analysis failed';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
@@ -375,7 +409,7 @@ export const documentAPI = {
       const response = await api.get('/analysis/history', { params });
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Failed to get analysis history';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
@@ -385,7 +419,7 @@ export const documentAPI = {
       const response = await api.get(`/analysis/${analysisId}`);
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Failed to get analysis';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
@@ -400,7 +434,7 @@ export const documentAPI = {
       const response = await api.post(`/analysis/${analysisId}/status`);
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Failed to get analysis status';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
@@ -410,8 +444,7 @@ export const documentAPI = {
       const response = await api.delete(`/analysis/${analysisId}`);
       return response.data;
     } catch (error: any) {
-      console.error('Delete analysis error:', error);
-      const message = error.response?.data?.detail || error.message || 'Failed to delete analysis';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
@@ -435,7 +468,7 @@ export const documentAPI = {
       });
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Failed to get documents';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
@@ -461,7 +494,7 @@ export const documentAPI = {
       });
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Failed to search documents';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
@@ -471,8 +504,7 @@ export const documentAPI = {
       const response = await api.delete(`/documents/${documentId}`);
       return response.data;
     } catch (error: any) {
-      console.error('Delete document error:', error);
-      const message = error.response?.data?.detail || error.message || 'Failed to delete document';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
@@ -486,7 +518,7 @@ export const documentAPI = {
       const response = await api.get('/statistics');
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Failed to get statistics';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
@@ -509,7 +541,8 @@ export const documentAPI = {
         localStorage.removeItem('user_data');
         window.location.href = '/login';
       }
-      throw error;
+      const message = extractErrorMessage(error);
+      throw new Error(message);
     }
   },
 
@@ -530,20 +563,20 @@ export const documentAPI = {
       // Provide a more user-friendly error message
       let errorMessage = 'Failed to download report. Please try again later.';
       
-      if (error.response?.status === 401) {
+      if (error?.response?.status === 401) {
         errorMessage = 'Authentication required. Please log in again.';
-      } else if (error.response?.status === 403) {
+      } else if (error?.response?.status === 403) {
         errorMessage = 'Access denied. You do not have permission to download this report.';
-      } else if (error.response?.status === 404) {
+      } else if (error?.response?.status === 404) {
         errorMessage = 'Report not found.';
-      } else if (error.response?.status === 500) {
+      } else if (error?.response?.status === 500) {
         errorMessage = 'Server error. Please try again later.';
-      } else if (error.message) {
+      } else if (error?.message) {
         errorMessage = error.message;
       }
       
       // If we have response data, try to parse it as JSON to get the detail message
-      if (error.response?.data) {
+      if (error?.response?.data) {
         try {
           // For blob responses, we need to read the blob as text first
           if (error.response.data instanceof Blob) {
@@ -602,7 +635,15 @@ export const documentAPI = {
               reject(new Error('Failed to parse response'));
             }
           } else {
-            reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+            // Try to parse error response
+            let errorMessage = `HTTP ${xhr.status}: ${xhr.statusText}`;
+            try {
+              const errorResponse = JSON.parse(xhr.responseText);
+              errorMessage = errorResponse.detail || errorMessage;
+            } catch (e) {
+              // If we can't parse the error, use the status text
+            }
+            reject(new Error(errorMessage));
           }
         });
 
@@ -639,10 +680,11 @@ export const healthAPI = {
     database_info: any;
   }> => {
     try {
-      const response = await api.get('/health');
+      // Use healthApi instance without custom headers to avoid CORS preflight issues
+      const response = await healthApi.get('/health');
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'Health check failed';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },
@@ -655,10 +697,11 @@ export const healthAPI = {
     database: any;
   }> => {
     try {
-      const response = await api.get('/');
+      // Use healthApi instance without custom headers to avoid CORS preflight issues
+      const response = await healthApi.get('/');
       return response.data;
     } catch (error: any) {
-      const message = error.response?.data?.detail || 'System info failed';
+      const message = extractErrorMessage(error);
       throw new Error(message);
     }
   },

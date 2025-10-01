@@ -217,6 +217,7 @@ class AnalysisResponse(BaseModel):
     status: str = "pending"
     confidence_score: Optional[float] = None
     key_insights_count: Optional[int] = None
+    error_message: Optional[str] = None  # Add this field
     
     # Include document info in response
     document: Optional[DocumentResponse] = None

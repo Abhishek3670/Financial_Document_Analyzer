@@ -56,11 +56,12 @@ function App() {
   const handleViewAnalysis = (analysis: any) => {
     setSelectedAnalysis(analysis);
     // Convert to AnalysisResponse format for display
-    if (analysis.status === 'completed') {
+    if (analysis.status === 'completed' || analysis.status === 'failed') {
       const analysisResponse: AnalysisResponse = {
         id: analysis.id,
-        status: 'success',
+        status: analysis.status,
         result: analysis.result || analysis.query, // Use actual result, fallback to query
+        error_message: analysis.error_message, // Include error message if present
         analysis_id: analysis.id,
         query: analysis.query,
         created_at: analysis.created_at,

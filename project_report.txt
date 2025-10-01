@@ -1,0 +1,348 @@
+# Financial Document Analyzer - Project Report
+
+## Table of Contents
+1. Project Overview
+2. Architecture Overview
+3. Backend Components
+4. Frontend Components
+5. Key Features
+6. Workflow
+7. API Endpoints
+8. Technologies Used
+9. Deployment
+
+## 1. Project Overview
+
+The Financial Document Analyzer is a sophisticated AI-powered system that analyzes financial documents (primarily PDFs) and provides comprehensive investment recommendations, risk assessments, and financial insights. The system uses CrewAI agents with specialized roles to process documents and generate detailed analyses.
+
+## 2. Architecture Overview
+
+### Backend (FastAPI)
+The backend is built with FastAPI and follows a clean architecture pattern with the following key components:
+
+1. Core Layer:
+   - agents.py - Defines specialized AI agents for different analysis tasks
+   - task.py - Defines tasks that agents perform
+   - database.py - Database connection and session management
+
+2. Models:
+   - models.py - SQLAlchemy database models and Pydantic response models
+
+3. Services:
+   - services.py - Business logic layer implementing CRUD operations
+
+4. Authentication:
+   - auth.py - Authentication service with JWT tokens
+   - auth_middleware.py - Authentication middleware
+
+5. Utilities:
+   - tools.py - Custom tools for agents (PDF reading, financial analysis, etc.)
+   - redis_cache.py - Caching layer for performance optimization
+   - llm_observability.py - LLM usage tracking and monitoring
+   - file_manager.py - File management utilities
+
+### Frontend (React/TypeScript)
+The frontend is a React application with TypeScript that provides a user interface for:
+- Uploading financial documents
+- Viewing analysis results
+- Managing analysis history
+- User authentication
+
+## 3. Backend Components
+
+### Core Layer
+
+#### agents.py
+Defines five specialized AI agents:
+1. Document Verifier - Validates financial documents for authenticity and completeness
+2. Financial Analyst - Extracts and analyzes key financial metrics
+3. Investment Specialist - Provides investment recommendations
+4. Risk Assessor - Evaluates financial and business risks
+5. Report Coordinator - Synthesizes all analysis into a comprehensive report
+
+Each agent has:
+- Specific role and goal
+- Detailed backstory explaining expertise
+- Specialized tools for their function
+- Performance tracking capabilities
+
+#### task.py
+Defines the tasks that agents perform:
+1. Document Verification Task
+2. Financial Analysis Task
+3. Investment Analysis Task
+4. Risk Assessment Task
+5. Report Synthesis Task
+
+Each task has:
+- Detailed description of what needs to be done
+- Expected output format
+- Assigned agent
+- Required tools
+- Context dependencies
+
+#### database.py
+Implements database connection and session management:
+- Supports both SQLite (development) and PostgreSQL (production)
+- Connection pooling for performance
+- Health check functionality
+- Database initialization and table creation
+
+### Models
+
+#### models.py
+Defines all database models:
+1. User - Authentication and session tracking
+2. Document - Document metadata storage
+3. Analysis - Analysis results and metadata
+4. AnalysisHistory - Audit trail for analyses
+
+Also defines Pydantic models for API responses:
+- User authentication models
+- Document response models
+- Analysis response models
+- Request validation models
+
+### Services
+
+#### services.py
+Implements business logic with separate services for:
+1. UserService - User management and authentication
+2. DocumentService - Document operations and management
+3. AnalysisService - Analysis operations and management
+4. AnalysisHistoryService - Audit trail operations
+
+Each service provides:
+- CRUD operations
+- Pagination support
+- Search functionality
+- Data validation
+- Error handling
+
+### Authentication
+
+#### auth.py
+Implements a complete authentication system:
+- User registration and login
+- Password hashing with bcrypt
+- JWT token generation and validation
+- Password reset functionality
+- Account lockout protection
+- Session management
+
+#### auth_middleware.py
+Provides authentication middleware:
+- Token validation for protected endpoints
+- User session management
+- Optional user authentication for public endpoints
+
+### Utilities
+
+#### tools.py
+Defines custom tools for agents:
+1. FinancialDocumentReader - Reads and processes PDF files
+2. InvestmentAnalyzer - Analyzes financial data for investment insights
+3. RiskAssessor - Assesses risks based on financial data
+4. DocumentClassifier - Classifies documents by type and industry
+5. Specialized search tools for different domains
+
+All tools implement:
+- Caching for performance optimization
+- Performance tracking
+- Error handling
+
+#### redis_cache.py
+Implements Redis-based caching:
+- Generic caching decorator
+- Specialized decorators for different use cases
+- Cache invalidation utilities
+- Performance statistics
+
+#### llm_observability.py
+Implements LLM usage tracking:
+- API call tracking
+- Performance metrics
+- Cost tracking
+- Error monitoring
+
+#### file_manager.py
+Implements file management utilities:
+- File storage management
+- Cleanup operations
+- Storage statistics
+- Maintenance operations
+
+## 4. Frontend Components
+
+### Main Components
+
+#### App.tsx
+Main application component that:
+- Manages application state
+- Handles navigation between views
+- Integrates authentication
+- Coordinates data flow
+
+#### Authentication Components
+- Auth.tsx - Main authentication provider and components
+- AuthDemo.tsx - Authentication demonstration
+- AuthEnhanced.tsx - Enhanced authentication features
+- AuthIntegration.tsx - Authentication integration
+- AuthPasswordReset.tsx - Password reset functionality
+- AuthProfileManagement.tsx - User profile management
+
+#### Analysis Components
+- AnalysisResults.tsx - Displays analysis results
+- AnalysisHistory.tsx - Shows analysis history
+- Documents.tsx - Manages document uploads
+
+#### UI Components
+- FileUpload.tsx - Handles document upload
+- Header.tsx - Application header
+- Navigation.tsx - Navigation menu
+- Toast.tsx - Notification system
+
+### API Client
+
+#### api.ts
+Implements all API interactions:
+- Authentication API
+- Document analysis API
+- Document management API
+- User management API
+- Health check API
+
+Features:
+- Automatic token management
+- Error handling
+- Progress tracking
+- Request/response interceptors
+
+## 5. Key Features
+
+### Multi-Agent AI Analysis
+The system uses specialized CrewAI agents for different aspects of financial analysis:
+- Document verification for authenticity
+- Financial data extraction and analysis
+- Investment recommendation generation
+- Risk assessment and mitigation
+- Comprehensive report synthesis
+
+### Persistent Storage
+All analyses, documents, and user data are stored in a database with:
+- User session management
+- Document metadata storage
+- Analysis results persistence
+- Audit trail with analysis history
+
+### Authentication System
+Full-featured authentication with:
+- User registration and login
+- Password hashing with bcrypt
+- JWT token-based authentication
+- Password reset functionality
+- Session management
+
+### Caching Layer
+Redis-based caching for:
+- LLM results (2-24 hour TTL)
+- Database queries (30 minute TTL)
+- Analysis results (24 hour TTL)
+- Performance optimization
+
+### Observability
+Comprehensive monitoring with:
+- LLM usage tracking
+- Performance metrics for agents and tools
+- API response time monitoring
+- Error tracking
+
+## 6. Workflow
+
+1. Document Upload: User uploads a PDF financial document through the frontend
+2. Validation: System validates the file type and size
+3. Storage: Document is stored temporarily and metadata saved to database
+4. Analysis Initiation: Background task is created for AI analysis
+5. Multi-Agent Processing: CrewAI agents process the document in parallel:
+   - Document verification
+   - Financial data extraction
+   - Investment analysis
+   - Risk assessment
+6. Report Generation: Results are synthesized into a comprehensive report
+7. Storage: Analysis results are saved to the database
+8. Notification: User can view results through the frontend
+
+## 7. API Endpoints
+
+### Authentication
+- POST /auth/register - User registration
+- POST /auth/login - User login
+- POST /auth/logout - User logout
+- GET /auth/me - Get current user profile
+- PUT /auth/profile - Update user profile
+- POST /auth/change-password - Change password
+- POST /auth/forgot-password - Request password reset
+- POST /auth/reset-password - Reset password
+
+### Document Analysis
+- POST /analyze - Upload document and start analysis
+- GET /analysis/history - Get analysis history
+- GET /analysis/{analysis_id} - Get specific analysis
+- POST /analysis/{analysis_id}/status - Get analysis status
+- DELETE /analysis/{analysis_id} - Delete analysis
+
+### Document Management
+- GET /documents - Get user documents
+- GET /documents/search - Search user documents
+- DELETE /documents/{document_id} - Delete document
+
+### System Information
+- GET / - Health check and system info
+- GET /health - Detailed health check
+- GET /statistics - Analysis statistics
+- GET /performance/agents - Agent performance metrics
+- GET /performance/tools - Tool performance metrics
+
+## 8. Technologies Used
+
+### Backend
+- FastAPI: High-performance web framework
+- SQLAlchemy: ORM for database operations
+- CrewAI: Multi-agent AI framework
+- Redis: Caching layer
+- SQLite: Default database (PostgreSQL support available)
+- JWT: Authentication tokens
+- bcrypt: Password hashing
+
+### Frontend
+- React: UI library
+- TypeScript: Type-safe JavaScript
+- Axios: HTTP client
+- Tailwind CSS: Styling framework
+
+### AI/ML
+- CrewAI: Multi-agent orchestration
+- LangChain: LLM integration
+- OpenAI API: Primary LLM provider
+- Serper: Search tool integration
+
+## 9. Deployment
+
+The system supports both development and production deployment:
+- Docker Compose configuration for production
+- Environment-based configuration
+- Database migration scripts
+- Health check endpoints for monitoring
+
+Environment variables:
+- Database configuration
+- API keys for external services
+- Authentication settings
+- Caching configuration
+- Performance tuning parameters
+
+The system is designed for scalability with:
+- Background task processing
+- Caching for performance
+- Database connection pooling
+- Horizontal scaling capabilities
