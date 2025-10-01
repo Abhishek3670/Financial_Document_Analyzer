@@ -12,19 +12,22 @@ const IntegratedHeader: React.FC = () => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [previousUser, setPreviousUser] = useState<typeof user>(null);
+  const [hasShownWelcomeToast, setHasShownWelcomeToast] = useState(false);
 
   // Monitor user changes to show welcome message
   useEffect(() => {
-    if (!previousUser && user) {
+    if (!previousUser && user && !hasShownWelcomeToast) {
       // User just logged in
       showToast(`Welcome back, ${user.full_name || user.username}!`, 'success');
+      setHasShownWelcomeToast(true);
       refreshUser(); // Refresh user data to ensure it's up to date
     } else if (previousUser && !user) {
       // User just logged out
       showToast('You have been logged out successfully', 'info');
+      setHasShownWelcomeToast(false); // Reset for next login
     }
     setPreviousUser(user);
-  }, [user, previousUser, showToast, refreshUser]);
+  }, [user, previousUser, showToast, refreshUser, hasShownWelcomeToast]);
 
   const handleAuthSuccess = () => {
     setShowAuthModal(false);

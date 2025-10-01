@@ -35,6 +35,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const loadUser = async () => {
     const token = storage.getToken();
@@ -51,9 +52,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Token is invalid, clear storage
         storage.clearAuth();
         setUser(null);
+        setShowAuthModal(true); // Show auth modal for unauthenticated users
       }
     } else {
       setUser(null);
+      setShowAuthModal(true); // Show auth modal for unauthenticated users
     }
     setIsLoading(false);
   };
@@ -67,6 +70,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsLoading(true);
       const response = await authAPI.login({ email, password });
       setUser(response.user);
+      setShowAuthModal(false); // Hide auth modal after successful login
     } catch (error) {
       throw error;
     } finally {
@@ -91,6 +95,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         last_name: data.lastName,
       });
       setUser(response.user);
+      setShowAuthModal(false); // Hide auth modal after successful registration
     } catch (error) {
       throw error;
     } finally {
@@ -107,6 +112,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setUser(null);
       setIsLoading(false);
+      setShowAuthModal(true); // Show auth modal after logout
     }
   };
 
@@ -133,7 +139,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: !!user,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      {showAuthModal && !user && <AuthModal isOpen={true} onClose={() => {}} />}
+    </AuthContext.Provider>
+  );
 };
 
 // Simple Auth Components for compatibility
@@ -173,7 +184,7 @@ export const AuthModal: React.FC<{
           lastName: formData.lastName,
         });
       }
-      onClose();
+      // Don't close the modal here as it's controlled by the AuthProvider
     } catch (error: any) {
       setError(error.message);
     }
@@ -296,13 +307,6 @@ export const AuthModal: React.FC<{
               : "Already have an account? Sign in"}
           </button>
         </div>
-
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-        >
-          ✕
-        </button>
       </div>
     </div>
   );
