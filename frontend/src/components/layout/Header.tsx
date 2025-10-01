@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, FileText, User, Settings, LogOut } from 'lucide-react';
+import { BarChart3, FileText, User, Settings, LogOut, Moon, Sun } from 'lucide-react';
 import { useAuth } from '../auth/Auth';
 import { EnhancedAuthModalWithReset } from '../auth/AuthEnhanced';
 import { ProfileManagementDashboard } from '../auth/AuthProfileManagement';
 import { useToast } from '../ui/Toast';
+import { useTheme } from '../ui/ThemeContext';
 
 interface HeaderProps {
   backendStatus?: 'checking' | 'online' | 'offline';
@@ -11,6 +12,7 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ backendStatus = 'checking' }) => {
   const { user, logout, refreshUser } = useAuth();
+  const { darkMode, toggleDarkMode } = useTheme();
   const { showToast } = useToast();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -126,7 +128,7 @@ const Header: React.FC<HeaderProps> = ({ backendStatus = 'checking' }) => {
 
   return (
     <>
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-white shadow-sm border-b dark:bg-gray-800 dark:border-gray-700">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -135,12 +137,25 @@ const Header: React.FC<HeaderProps> = ({ backendStatus = 'checking' }) => {
                 <FileText className="w-8 h-8 text-green-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Wingily FinAnalyzer</h1>
-                <p className="text-sm text-gray-500">AI-Powered Financial Document Analysis</p>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Wingily FinAnalyzer</h1>
+                <p className="text-sm text-gray-500 dark:text-gray-300">AI-Powered Financial Document Analysis</p>
               </div>
             </div>
             
             <div className="flex items-center space-x-4">
+              {/* Dark Mode Toggle */}
+              <button
+                onClick={toggleDarkMode}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+              >
+                {darkMode ? (
+                  <Sun className="w-5 h-5 text-yellow-400" />
+                ) : (
+                  <Moon className="w-5 h-5 text-gray-600" />
+                )}
+              </button>
+              
               {/* Backend Status Indicator */}
               {renderBackendStatus()}
               

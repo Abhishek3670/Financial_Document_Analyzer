@@ -19,4 +19,5 @@ module.exports = {
   plugins: [
     require('@tailwindcss/forms'),
   ],
+  darkMode: 'class', // Enable dark mode with class strategy
 }

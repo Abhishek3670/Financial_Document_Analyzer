@@ -189,18 +189,18 @@ const FileUpload: React.FC<FileUploadProps> = ({
     <div className={`space-y-6 ${className}`}>
       {/* File Upload Area */}
       <div 
-        className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors"
+        className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors dark:border-gray-600 dark:hover:border-blue-400 dark:bg-gray-800"
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
         <div className="space-y-4">
-          <div className="mx-auto w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
-            <Upload className="w-6 h-6 text-blue-600" />
+          <div className="mx-auto w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center dark:bg-blue-900/30">
+            <Upload className="w-6 h-6 text-blue-600 dark:text-blue-400" />
           </div>
           
           <div>
-            <h3 className="text-lg font-medium text-gray-900">Upload Document</h3>
-            <p className="text-gray-500">Drag and drop or click to select a PDF file</p>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Upload Document</h3>
+            <p className="text-gray-500 dark:text-gray-400">Drag and drop or click to select a PDF file</p>
           </div>
 
           <input
@@ -213,7 +213,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
           />
           <label
             htmlFor="file-input"
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 cursor-pointer"
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 cursor-pointer dark:bg-blue-600 dark:hover:bg-blue-700"
           >
             Choose File
           </label>
@@ -222,18 +222,18 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
       {/* Selected File Display */}
       {selectedFile && (
-        <div className="bg-gray-50 rounded-lg p-4">
+        <div className="bg-gray-50 rounded-lg p-4 dark:bg-gray-800">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <FileText className="w-8 h-8 text-blue-600" />
+              <FileText className="w-8 h-8 text-blue-600 dark:text-blue-400" />
               <div>
-                <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
-                <p className="text-xs text-gray-500">{formatFileSize(selectedFile.size)}</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{selectedFile.name}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{formatFileSize(selectedFile.size)}</p>
               </div>
             </div>
             <button
               onClick={handleRemoveFile}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
             >
               <X className="w-5 h-5" />
             </button>
@@ -243,13 +243,13 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
       {/* Analysis Query */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
           Analysis Query (Optional)
         </label>
         <textarea
           value={query}
           onChange={handleQueryChange}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"
           rows={3}
           placeholder="Describe what specific analysis you'd like..."
         />
@@ -262,20 +262,20 @@ const FileUpload: React.FC<FileUploadProps> = ({
             type="checkbox"
             checked={keepFile}
             onChange={handleKeepFileChange}
-            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
           />
-          <span className="ml-2 text-sm text-gray-700">Keep file for future reference</span>
+          <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">Keep file for future reference</span>
         </label>
       </div>
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+        <div className="bg-red-50 border border-red-200 rounded-md p-4 dark:bg-red-900/20 dark:border-red-800">
           <div className="flex">
             <AlertCircle className="w-5 h-5 text-red-400" />
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Analysis Error</h3>
-              <p className="text-sm text-red-700 mt-1">{error}</p>
+              <h3 className="text-sm font-medium text-red-800 dark:text-red-200">Analysis Error</h3>
+              <p className="text-sm text-red-700 mt-1 dark:text-red-300">{error}</p>
             </div>
           </div>
         </div>
@@ -284,13 +284,13 @@ const FileUpload: React.FC<FileUploadProps> = ({
       {/* Progress Bar */}
       {isLoading && (
         <div className="space-y-2">
-          <div className="flex justify-between text-sm text-gray-600">
+          <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
             <span>Processing document...</span>
             <span>{progress}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
             <div
-              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300 dark:bg-blue-500"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -301,7 +301,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
       <button
         onClick={handleAnalyze}
         disabled={!selectedFile || isLoading}
-        className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+        className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed dark:bg-blue-600 dark:hover:bg-blue-700 dark:disabled:bg-gray-700"
       >
         {isLoading ? (
           <>

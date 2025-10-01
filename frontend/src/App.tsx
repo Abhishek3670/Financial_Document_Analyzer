@@ -9,6 +9,7 @@ import { AnalysisResponse, AnalysisHistoryItem } from './types';
 import { healthCheck } from './api';
 import { ToastProvider } from './components/ui/Toast';
 import { AuthProvider, useAuth } from './components/auth/Auth';
+import { ThemeProvider } from './components/ui/ThemeContext';
 import './App.css';
 
 // Define interface for upload form state
@@ -172,7 +173,7 @@ const AppContent: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
+        <div className="text-lg dark:text-white">Loading...</div>
       </div>
     );
   }
@@ -180,7 +181,7 @@ const AppContent: React.FC = () => {
   // Show main app content only if authenticated
   if (isAuthenticated) {
     return (
-      <div className="flex flex-col min-h-screen bg-gray-50">
+      <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
         <Header backendStatus={backendStatus} />
         
         {/* Navigation */}
@@ -195,8 +196,8 @@ const AppContent: React.FC = () => {
         </main>
 
         {/* Footer */}
-        <footer className="bg-white border-t border-gray-200 py-6">
-          <div className="container mx-auto px-4 text-center text-gray-600 text-sm">
+        <footer className="bg-white border-t border-gray-200 py-6 dark:bg-gray-800 dark:border-gray-700">
+          <div className="container mx-auto px-4 text-center text-gray-600 text-sm dark:text-gray-400">
             <p>
               Financial Document Analyzer
             </p>
@@ -213,9 +214,11 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <ToastProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </ThemeProvider>
     </ToastProvider>
   );
 }
