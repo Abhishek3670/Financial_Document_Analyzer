@@ -52,8 +52,32 @@ from backend.auth.auth_middleware import (
 from backend.utils.redis_cache import cache_result, cache_llm_result, cache_analysis_result
 
 # Setup logging
-logging.basicConfig(level=logging.INFO)
+import logging.handlers
+
+# Create logs directory if it doesn't exist
+os.makedirs('logs', exist_ok=True)
+
+# Configure logging to both file and console
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Create formatter
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# Create console handler
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(formatter)
+
+# Create file handler
+file_handler = logging.handlers.RotatingFileHandler(
+    'logs/app.log', maxBytes=10*1024*1024, backupCount=5)  # 10MB files, max 5 backups
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(formatter)
+
+# Add handlers to logger
+logger.addHandler(console_handler)
+logger.addHandler(file_handler)
 
 # Agent performance tracking
 crew_performance_metrics = {}
