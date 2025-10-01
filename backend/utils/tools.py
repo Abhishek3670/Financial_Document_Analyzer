@@ -349,8 +349,8 @@ class FinancialSearchTool(BaseTool):
         try:
             # Add financial context to the query
             financial_query = f"financial {query}"
-            tool = SerperDevTool(api_key=SERPER_API_KEY)
-            result = tool._run(financial_query)
+            # Use the existing search_tool instance instead of creating a new one
+            result = search_tool._run(financial_query)
             return result
         except Exception as e:
             logger.error(f"Financial search failed: {e}")
@@ -367,8 +367,8 @@ class InvestmentSearchTool(BaseTool):
         try:
             # Add investment context to the query
             investment_query = f"investment {query}"
-            tool = SerperDevTool(api_key=SERPER_API_KEY)
-            result = tool._run(investment_query)
+            # Use the existing search_tool instance instead of creating a new one
+            result = search_tool._run(investment_query)
             return result
         except Exception as e:
             logger.error(f"Investment search failed: {e}")
@@ -385,8 +385,8 @@ class RiskSearchTool(BaseTool):
         try:
             # Add risk context to the query
             risk_query = f"risk {query}"
-            tool = SerperDevTool(api_key=SERPER_API_KEY)
-            result = tool._run(risk_query)
+            # Use the existing search_tool instance instead of creating a new one
+            result = search_tool._run(risk_query)
             return result
         except Exception as e:
             logger.error(f"Risk search failed: {e}")
@@ -403,8 +403,8 @@ class IndustrySearchTool(BaseTool):
         try:
             # Add industry context to the query
             industry_query = f"{industry} {query}" if industry else query
-            tool = SerperDevTool(api_key=SERPER_API_KEY)
-            result = tool._run(industry_query)
+            # Use the existing search_tool instance instead of creating a new one
+            result = search_tool._run(industry_query)
             return result
         except Exception as e:
             logger.error(f"Industry search failed: {e}")
