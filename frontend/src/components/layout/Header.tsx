@@ -154,7 +154,7 @@ const Header: React.FC<HeaderProps> = ({ backendStatus = 'checking' }) => {
                 <FileText className="w-8 h-8 text-green-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Wingily FinAnalyzer</h1>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Financial Document Analyzer</h1>
                 <p className="text-sm text-gray-500 dark:text-gray-300">AI-Powered Financial Document Analysis</p>
               </div>
             </div>
