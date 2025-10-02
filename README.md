@@ -3,6 +3,8 @@
 ## Project Overview
 A comprehensive financial document analysis system that processes corporate reports, financial statements, and investment documents using AI-powered analysis agents. This is a production-grade system that requires enterprise-level thinking and implementation.
 
+**This project was assigned to me by Wingify Software Pvt. Ltd., who identified my capabilities for tackling this complex challenge.**
+
 ## CRITICAL WARNING
 **Every single line of code in this repository contains bugs, inefficiencies, or poor practices.** This is not an exaggeration - scrutinize each line of code.
 
