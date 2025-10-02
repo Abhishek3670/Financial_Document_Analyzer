@@ -118,7 +118,7 @@ document_verifier = Agent(
     tools=[financial_document_tool],
     llm=llm,
     max_iter=3,
-    max_execution_time=120,  # Increased from 60 to 120 seconds to prevent timeout issues
+    max_execution_time=240,  # Increased to 240 seconds to prevent timeout issues
     allow_delegation=True  # Can delegate to other specialists after verification
 )
 
@@ -154,7 +154,7 @@ financial_analyst = Agent(
     tools=[financial_document_tool, financial_search_tool],  # Use specialized financial search tool
     llm=llm,
     max_iter=4,
-    max_execution_time=300,  # Increased from 180 to 300 seconds (5 minutes)
+    max_execution_time=600,  # Increased to 600 seconds (10 minutes) for complex documents
     allow_delegation=True
 )
 
@@ -189,7 +189,7 @@ investment_specialist = Agent(
     tools=[investment_analysis_tool, investment_search_tool],  # Use specialized investment search tool
     llm=llm,
     max_iter=4,
-    max_execution_time=240,  # Increased from 150 to 240 seconds (4 minutes)
+    max_execution_time=480,  # Increased to 480 seconds (8 minutes)
     allow_delegation=True
 )
 
@@ -225,7 +225,7 @@ risk_assessor = Agent(
     tools=[risk_assessment_tool, risk_search_tool],  # Use specialized risk search tool
     llm=llm,
     max_iter=4,
-    max_execution_time=240,  # Increased from 150 to 240 seconds (4 minutes)
+    max_execution_time=480,  # Increased to 480 seconds (8 minutes)
     allow_delegation=False  # Final specialist in the chain
 )
 
@@ -259,7 +259,7 @@ report_coordinator = Agent(
     tools=[search_tool, industry_search_tool],  # Use generic search and industry search tools
     llm=llm,
     max_iter=3,
-    max_execution_time=180,  # Increased from 120 to 180 seconds (3 minutes)
+    max_execution_time=360,  # Increased to 360 seconds (6 minutes)
     allow_delegation=False
 )
 
@@ -285,11 +285,11 @@ def create_dynamic_agents(document_type: str = "unknown", industry: str = "gener
         dict: Configured agents with appropriate settings
     """
     
-    # Base execution times
+    # Base execution times (increased to prevent timeouts)
     base_times = {
-        "fast": {"document_verifier": 90, "financial_analyst": 240, "investment_specialist": 180, "risk_assessor": 180, "report_coordinator": 120},
-        "standard": {"document_verifier": 120, "financial_analyst": 300, "investment_specialist": 240, "risk_assessor": 240, "report_coordinator": 180},
-        "detailed": {"document_verifier": 180, "financial_analyst": 420, "investment_specialist": 360, "risk_assessor": 360, "report_coordinator": 240}
+        "fast": {"document_verifier": 180, "financial_analyst": 480, "investment_specialist": 360, "risk_assessor": 360, "report_coordinator": 240},
+        "standard": {"document_verifier": 240, "financial_analyst": 600, "investment_specialist": 480, "risk_assessor": 480, "report_coordinator": 360},
+        "detailed": {"document_verifier": 360, "financial_analyst": 900, "investment_specialist": 720, "risk_assessor": 720, "report_coordinator": 480}
     }
     
     # Select execution times based on processing speed

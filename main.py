@@ -1315,8 +1315,8 @@ def process_analysis_background(
         # Use a thread pool executor to run the CPU-intensive CrewAI task
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(run_crew_with_mode, query=query, file_path=file_path, use_enhanced=True)
-            # Wait for completion with a timeout (increased to 15 minutes for complex financial analysis)
-            analysis_result = future.result(timeout=900)  # 15 minutes timeout
+            # Wait for completion with a timeout (increased to 30 minutes for complex financial analysis)
+            analysis_result = future.result(timeout=1800)  # 30 minutes timeout
         
         logger.info(f"CrewAI analysis completed in thread: {threading.current_thread().name}")
         # Convert CrewOutput to string before getting length

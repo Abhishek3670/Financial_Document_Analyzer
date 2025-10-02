@@ -74,22 +74,44 @@ class FinancialDocumentReader(BaseTool):
             if not file_path.startswith('/'):
                 file_path = os.path.join(os.getcwd(), file_path)
             
-            loader = PyPDFLoader(file_path)
-            docs = loader.load()
+            # Add timeout mechanism for PDF loading
+            import signal
+            
+            def timeout_handler(signum, frame):
+                raise TimeoutError("PDF loading timed out after 60 seconds")
+            
+            # Set up timeout signal
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(60)  # 60 second timeout
+            
+            try:
+                loader = PyPDFLoader(file_path)
+                docs = loader.load()
+                
+                # Cancel the timeout
+                signal.alarm(0)
+            except TimeoutError:
+                return "Error: PDF file loading timed out. File may be too large or corrupted."
             
             if not docs:
                 return "Error: PDF file appears to be empty or corrupted."
             
             full_report = ""
-            for data in docs:
+            # Process only first 20 pages to prevent excessive processing time
+            for i, data in enumerate(docs[:20]):
                 content = data.page_content
                 # Clean up multiple newlines
                 content = re.sub(r'\n+', '\n', content)
                 full_report += content + "\n"
+                
+                # Early exit if we've accumulated enough content
+                if len(full_report) > 150000:  # 150KB limit
+                    full_report = full_report[:150000] + "\n[Content truncated due to size...]"
+                    break
             
             # Limit output size to prevent memory issues
-            if len(full_report) > 100000:  # 100KB limit
-                full_report = full_report[:100000] + "\n[Content truncated due to size...]"
+            if len(full_report) > 150000:  # 150KB limit
+                full_report = full_report[:150000] + "\n[Content truncated due to size...]"
                 
             return full_report
             
