@@ -1,4 +1,4 @@
-# Financial Document Analyzer - Full Stack AI Developer Challenge (Wingify Software Pvt. Ltd.)
+# Financial Document Analyzer - Full Stack AI Developer Challenge 
 
 ## Project Overview
 A comprehensive financial document analysis system that processes corporate reports, financial statements, and investment documents using AI-powered analysis agents. This is a production-grade system that requires enterprise-level thinking and implementation.
