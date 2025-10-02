@@ -66,6 +66,10 @@ def track_agent_performance(agent_name):
             except Exception as e:
                 execution_time = time.time() - start_time
                 logger.error(f"Agent {agent_name} failed after {execution_time:.2f} seconds: {e}")
+                # Still track the failure
+                if agent_name not in agent_performance_metrics:
+                    agent_performance_metrics[agent_name] = []
+                agent_performance_metrics[agent_name].append(execution_time)
                 raise
         return wrapper
     return decorator
@@ -259,6 +263,11 @@ report_coordinator = Agent(
     allow_delegation=False
 )
 
+# Apply performance tracking to the document verifier
+# Apply performance tracking to the financial analyst
+# Apply performance tracking to the investment specialist
+# Apply performance tracking to the risk assessor
+# Apply performance tracking to the report coordinator
 # Legacy compatibility aliases (for backward compatibility with existing code)
 data_extractor = financial_analyst
 investment_analyst = investment_specialist

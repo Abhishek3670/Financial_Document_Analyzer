@@ -672,6 +672,49 @@ export const documentAPI = {
   }
 };
 
+// Performance API
+export const performanceAPI = {
+  getLLMMetrics: async (): Promise<any> => {
+    try {
+      const response = await api.get('/metrics/llm');
+      return response.data;
+    } catch (error: any) {
+      const message = extractErrorMessage(error);
+      throw new Error(message);
+    }
+  },
+
+  getAgentPerformance: async (): Promise<any> => {
+    try {
+      const response = await api.get('/performance/agents');
+      return response.data;
+    } catch (error: any) {
+      const message = extractErrorMessage(error);
+      throw new Error(message);
+    }
+  },
+
+  getToolPerformance: async (): Promise<any> => {
+    try {
+      const response = await api.get('/performance/tools');
+      return response.data;
+    } catch (error: any) {
+      const message = extractErrorMessage(error);
+      throw new Error(message);
+    }
+  },
+
+  getDashboardData: async (): Promise<any> => {
+    try {
+      const response = await api.get('/performance/dashboard');
+      return response.data;
+    } catch (error: any) {
+      const message = extractErrorMessage(error);
+      throw new Error(message);
+    }
+  }
+};
+
 // Health Check API
 export const healthAPI = {
   checkHealth: async (): Promise<{

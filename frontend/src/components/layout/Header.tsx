@@ -102,6 +102,23 @@ const Header: React.FC<HeaderProps> = ({ backendStatus = 'checking' }) => {
               <p className="text-sm text-gray-500">{user?.email}</p>
             </div>
             
+            {/* Performance Dashboard Button - Only shown to authenticated users */}
+            {user && (
+              <button
+                onClick={() => {
+                  // Since we can't use navigate, we'll need to handle this through the parent component
+                  // We'll add a data attribute that can be detected by the parent
+                  const event = new CustomEvent('navigateToPerformance');
+                  window.dispatchEvent(event);
+                  setShowDropdown(false);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center"
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Performance
+              </button>
+            )}
+            
             <button
               onClick={() => {
                 setShowProfileModal(true);
