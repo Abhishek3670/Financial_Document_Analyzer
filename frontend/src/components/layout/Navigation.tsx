@@ -5,10 +5,10 @@ import {
   FileText, 
   BarChart3, 
   Settings,
-  Home
+  Activity
 } from 'lucide-react';
 
-export type NavigationTab = 'upload' | 'history' | 'documents' | 'analytics' | 'settings';
+export type NavigationTab = 'upload' | 'history' | 'documents' | 'performance' | 'settings';
 
 interface NavigationProps {
   activeTab: NavigationTab;
@@ -36,10 +36,10 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
       description: 'Manage your documents'
     },
     {
-      id: 'analytics' as NavigationTab,
-      label: 'Analytics',
-      icon: BarChart3,
-      description: 'View statistics and insights'
+      id: 'performance' as NavigationTab,
+      label: 'Performance',
+      icon: Activity,
+      description: 'Monitor system performance'
     },
   ];
 

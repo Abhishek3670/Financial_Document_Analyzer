@@ -3,6 +3,7 @@ import FileUpload from './components/ui/FileUpload';
 import AnalysisResults from './components/analysis/AnalysisResults';
 import AnalysisHistory from './components/analysis/AnalysisHistory';
 import Documents from './components/analysis/Documents';
+import PerformanceDashboard from './components/analysis/PerformanceDashboard';
 import Header from './components/layout/Header';
 import Navigation, { NavigationTab } from './components/layout/Navigation';
 import { AnalysisResponse, AnalysisHistoryItem } from './types';
@@ -48,6 +49,18 @@ const AppContent: React.FC = () => {
     };
 
     checkBackend();
+  }, []);
+
+  // Handle custom navigation event from header
+  useEffect(() => {
+    const handleNavigateToPerformance = () => {
+      setActiveTab('performance');
+    };
+
+    window.addEventListener('navigateToPerformance', handleNavigateToPerformance);
+    return () => {
+      window.removeEventListener('navigateToPerformance', handleNavigateToPerformance);
+    };
   }, []);
 
   const handleAnalysisComplete = (result: any) => {
@@ -157,6 +170,13 @@ const AppContent: React.FC = () => {
         return (
           <div className="space-y-6">
             <Documents />
+          </div>
+        );
+      
+      case 'performance':
+        return (
+          <div className="space-y-6">
+            <PerformanceDashboard />
           </div>
         );
       

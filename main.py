@@ -89,6 +89,8 @@ logger.info(f"\n{separator}\nApplication started at {datetime.now().strftime('%Y
 
 # Agent performance tracking
 crew_performance_metrics = {}
+agent_execution_times = {}
+agent_execution_counts = {}
 
 def track_crew_performance(crew_name, start_time):
     """Track crew execution performance"""
@@ -97,6 +99,24 @@ def track_crew_performance(crew_name, start_time):
         crew_performance_metrics[crew_name] = []
     crew_performance_metrics[crew_name].append(execution_time)
     logger.info(f"Crew {crew_name} completed in {execution_time:.2f} seconds")
+
+def crew_step_callback(step_output):
+    """Callback function to track crew execution steps"""
+    # This callback is called after each step of every agent in the crew
+    if hasattr(step_output, 'agent') and hasattr(step_output.agent, 'role'):
+        agent_name = step_output.agent.role
+        # Log agent step execution
+        logger.info(f"Crew step executed by agent: {agent_name}")
+        
+        # Track agent execution counts
+        if agent_name not in agent_execution_counts:
+            agent_execution_counts[agent_name] = 0
+        agent_execution_counts[agent_name] += 1
+        
+        # Track agent execution (we'll count steps as executions for now)
+        if agent_name not in agent_execution_times:
+            agent_execution_times[agent_name] = []
+        agent_execution_times[agent_name].append(time.time())
 
 def get_crew_performance_summary():
     """Get performance summary for all crews"""
@@ -110,6 +130,13 @@ def get_crew_performance_summary():
                 "max_time": max(times),
                 "total_time": sum(times)
             }
+    
+    # Add agent performance data
+    for agent_name, count in agent_execution_counts.items():
+        if agent_name not in summary:
+            summary[agent_name] = {}
+        summary[agent_name]["execution_count"] = count
+    
     return summary
 
 # Initialize database on startup
@@ -216,7 +243,8 @@ def run_crew(query: str, file_path: str) -> str:
             agents=[financial_analyst, data_extractor, investment_analyst, risk_analyst],
             tasks=[comprehensive_financial_analysis],
             process=Process.sequential,
-            verbose=True
+            verbose=True,
+            step_callback=crew_step_callback  # Add step callback
         )
 
         # Execute the crew with timeout handling
@@ -408,14 +436,22 @@ def run_enhanced_multi_agent_crew(query: str, file_path: str) -> str:
             verbose=True,
             manager_llm=llm,
             memory=True,
-            planning=True
+            planning=True,
+            step_callback=crew_step_callback  # Add step callback to track agent performance
         )
 
-        # Execute the enhanced workflow
-        result = enhanced_financial_crew.kickoff({
-            "query": query, 
-            "file_path": file_path
-        })
+        # Execute the enhanced workflow with timeout handling
+        try:
+            result = enhanced_financial_crew.kickoff({
+                "query": query, 
+                "file_path": file_path
+            })
+        except TimeoutError as e:
+            logger.error(f"Enhanced crew workflow timed out: {e}")
+            result = "Analysis timed out. Please try again with a smaller document or more specific query."
+        except Exception as e:
+            logger.error(f"Enhanced crew workflow failed: {e}")
+            result = "Analysis failed. Please try again."
         
         # Track performance
         track_crew_performance(crew_name, start_time)
@@ -469,7 +505,8 @@ def run_parallel_multi_agent_crew(query: str, file_path: str) -> str:
             tasks=[document_verification_task],
             process=Process.sequential,
             verbose=True,
-            memory=True
+            memory=True,
+            step_callback=crew_step_callback  # Add step callback
         )
         
         # Execute document verification with increased timeout handling
@@ -498,7 +535,8 @@ def run_parallel_multi_agent_crew(query: str, file_path: str) -> str:
             tasks=[financial_analysis_task],
             process=Process.sequential,
             verbose=True,
-            memory=True
+            memory=True,
+            step_callback=crew_step_callback  # Add step callback
         )
         
         # Execute financial analysis
@@ -520,7 +558,8 @@ def run_parallel_multi_agent_crew(query: str, file_path: str) -> str:
                 tasks=[investment_analysis_task],
                 process=Process.sequential,
                 verbose=True,
-                memory=True
+                memory=True,
+                step_callback=crew_step_callback  # Add step callback
             )
             result = investment_crew.kickoff({
                 "query": query,
@@ -537,7 +576,8 @@ def run_parallel_multi_agent_crew(query: str, file_path: str) -> str:
                 tasks=[risk_assessment_task],
                 process=Process.sequential,
                 verbose=True,
-                memory=True
+                memory=True,
+                step_callback=crew_step_callback  # Add step callback
             )
             result = risk_crew.kickoff({
                 "query": query,
@@ -575,7 +615,8 @@ def run_parallel_multi_agent_crew(query: str, file_path: str) -> str:
             tasks=[report_synthesis_task],
             process=Process.sequential,
             verbose=True,
-            memory=True
+            memory=True,
+            step_callback=crew_step_callback  # Add step callback
         )
         
         # Execute report synthesis
@@ -613,87 +654,6 @@ def run_parallel_multi_agent_crew(query: str, file_path: str) -> str:
             status_code=500, 
             detail=f"Analysis processing error: {str(e)}"
         )
-
-@cache_analysis_result(ttl=14400)  # Cache for 4 hours
-def run_enhanced_multi_agent_crew(query: str, file_path: str) -> str:
-    """Run the enhanced CrewAI crew with specialized agents for comprehensive financial analysis"""
-    start_time = time.time()
-    crew_name = "enhanced_crew"
-    try:
-        logger.info("Starting enhanced multi-agent financial analysis workflow")
-        
-        # Create the enhanced crew with specialized agents and tasks
-        enhanced_financial_crew = Crew(
-            agents=[
-                document_verifier,
-                financial_analyst, 
-                investment_specialist,
-                risk_assessor,
-                report_coordinator
-            ],
-            tasks=[
-                document_verification_task,
-                financial_analysis_task,
-                investment_analysis_task,
-                risk_assessment_task,
-                report_synthesis_task
-            ],
-            process=Process.hierarchical,
-            verbose=True,
-            manager_llm=llm,
-            memory=True,
-            planning=True
-        )
-
-        # Execute the enhanced workflow with timeout handling
-        try:
-            result = enhanced_financial_crew.kickoff({
-                "query": query, 
-                "file_path": file_path
-            })
-        except TimeoutError as e:
-            logger.error(f"Enhanced crew workflow timed out: {e}")
-            result = "Analysis timed out. Please try again with a smaller document or more specific query."
-        except Exception as e:
-            logger.error(f"Enhanced crew workflow failed: {e}")
-            result = "Analysis failed. Please try again."
-        
-        # Track performance
-        track_crew_performance(crew_name, start_time)
-        
-        logger.info(f"Enhanced CrewAI workflow completed. Result type: {type(result)}")
-        logger.info(f"Enhanced CrewAI result length: {len(str(result)) if result else 0}")
-        logger.info(f"Enhanced CrewAI result preview: {str(result)[:200] if result else 'None'}")
-        
-        # Log performance metrics
-        execution_time = time.time() - start_time
-        logger.info(f"PERFORMANCE METRICS - Enhanced Crew: {execution_time:.2f}s")
-        
-        # Process the result from the enhanced workflow
-        if result is None:
-            result = "No analysis result was generated from the enhanced workflow. Please try again."
-        elif hasattr(result, "raw"):
-            result = str(result.raw)
-        else:
-            result = str(result)
-            
-        # Validate result quality
-        if len(result.strip()) < 100:
-            logger.warning(f"Enhanced CrewAI result appears incomplete: {result[:100]}")
-            # Fall back to the original single-agent crew
-            logger.info("Falling back to original crew configuration")
-            return run_crew(query, file_path)
-            
-        return result
-        
-    except Exception as e:
-        # Track performance even on error
-        track_crew_performance(crew_name, start_time)
-        execution_time = time.time() - start_time
-        logger.error(f"Enhanced crew workflow error after {execution_time:.2f} seconds: {e}")
-        logger.info("Falling back to original crew configuration due to error")
-        # Fall back to the original crew configuration
-        return run_crew(query, file_path)
 
 @cache_analysis_result(ttl=14400)  # Cache for 4 hours
 def run_dynamic_multi_agent_crew(query: str, file_path: str) -> str:
@@ -753,7 +713,8 @@ def run_dynamic_multi_agent_crew(query: str, file_path: str) -> str:
             verbose=True,
             manager_llm=llm,
             memory=True,
-            planning=True
+            planning=True,
+            step_callback=crew_step_callback  # Add step callback
         )
 
         # Execute the dynamic workflow with timeout handling
@@ -1813,16 +1774,31 @@ async def delete_analysis(
 async def get_agent_performance():
     """Get performance metrics for all agents/crews"""
     try:
-        # Get performance metrics from main.py
-        summary = get_crew_performance_summary()
+        # Get performance metrics from agents.py
+        from backend.core.agents import get_agent_performance_summary
+        agent_summary = get_agent_performance_summary()
+        
+        # Get performance metrics from main.py (crew level)
+        crew_summary = get_crew_performance_summary()
+        
+        # Combine agent performance data from both sources
+        combined_agent_performance = agent_summary.copy()
+        
+        # Add crew-level agent tracking data
+        for key, value in crew_summary.items():
+            if key not in ["enhanced_crew", "parallel_crew", "original_crew", "dynamic_crew"] and key not in combined_agent_performance:
+                combined_agent_performance[key] = value
+        
         return {
-            "agent_performance": summary,
+            "individual_agent_performance": combined_agent_performance,
+            "crew_performance": {k: v for k, v in crew_summary.items() if k in ["enhanced_crew", "parallel_crew", "original_crew", "dynamic_crew"]},
             "timestamp": time.time()
         }
     except Exception as e:
         logger.error(f"Agent performance metrics error: {e}")
         return {
-            "agent_performance": {},
+            "individual_agent_performance": {},
+            "crew_performance": {},
             "error": str(e),
             "timestamp": time.time()
         }
@@ -1855,14 +1831,26 @@ async def performance_dashboard():
         agent_summary = get_agent_performance_summary()
         
         # Get tool performance metrics
-        from tools import get_tool_performance_summary
+        from backend.utils.tools import get_tool_performance_summary
         tool_summary = get_tool_performance_summary()
         
         # Get LLM metrics
         llm_metrics = llm_observability.get_metrics_summary()
         
+        # Get crew performance metrics
+        crew_summary = get_crew_performance_summary()
+        
+        # Combine agent performance data from both sources
+        combined_agent_performance = agent_summary.copy()
+        
+        # Add crew-level agent tracking data
+        for key, value in crew_summary.items():
+            if key not in ["enhanced_crew", "parallel_crew", "original_crew", "dynamic_crew"] and key not in combined_agent_performance:
+                combined_agent_performance[key] = value
+        
         return {
-            "agent_performance": agent_summary,
+            "individual_agent_performance": combined_agent_performance,
+            "crew_performance": {k: v for k, v in crew_summary.items() if k in ["enhanced_crew", "parallel_crew", "original_crew", "dynamic_crew"]},
             "tool_performance": tool_summary,
             "llm_metrics": llm_metrics,
             "timestamp": time.time()
@@ -1870,7 +1858,8 @@ async def performance_dashboard():
     except Exception as e:
         logger.error(f"Performance dashboard error: {e}")
         return {
-            "agent_performance": {},
+            "individual_agent_performance": {},
+            "crew_performance": {},
             "tool_performance": {},
             "llm_metrics": {},
             "error": str(e),
